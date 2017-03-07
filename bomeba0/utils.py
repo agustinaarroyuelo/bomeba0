@@ -1,6 +1,6 @@
 """
 A collection of common mathematical functions written for high performance with
-the help of numpy and numba.      
+the help of numpy and numba.
 """
 
 import numpy as np
@@ -44,21 +44,14 @@ def cross(p, q):
     return xyz
 
 @jit
-def mod(x):
+def mod(p):
     """
-    Compute modulus of a 3D vector
-    x: array
-        Cartesian coordinates for a vector
+    Compute modulus of 3D vector
+    p: array
+        Cartesian coordinates
     """
-    return (x[0]**2 + x[1]**2 + x[2]**2)**0.5
+    return (p[0]**2 + p[1]**2 + p[2]**2)**0.5
 
-
-@jit
-def m_ang(u_A, u_B):
-    """
-    FIXME I am not using this function!!!
-    """
-    return np.arccos(dot(u_A, u_B) / (mod(u_A) * mod(u_B)))
 
 @jit
 def normalize(p):
@@ -68,3 +61,10 @@ def normalize(p):
         Cartesian coordinates
     """
     return p/(dot(p, p))**0.5
+    
+@jit
+def perp_vector(p, q, r):
+    """
+    Compute perpendicular vector to (p-q) and (r-q) centered in q.
+    """
+    return norm(cross(q - r, q - p)) + q
