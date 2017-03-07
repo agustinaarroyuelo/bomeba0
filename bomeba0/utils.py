@@ -6,6 +6,7 @@ the help of numpy and numba.
 import numpy as np
 from numba import jit
 
+
 @jit
 def dist(p, q):
     """
@@ -15,7 +16,8 @@ def dist(p, q):
     q: array
         Cartesian coordinates for one of the vectors
     """
-    return ((p[0]-q[0])**2 + (p[1]-q[1])**2 + (p[2]-q[2])**2)**0.5
+    return ((p[0] - q[0])**2 + (p[1] - q[1])**2 + (p[2] - q[2])**2)**0.5
+
 
 @jit
 def dot(p, q):
@@ -26,7 +28,8 @@ def dot(p, q):
     q: array
         Cartesian coordinates for one of the vectors
     """
-    return p[0]*q[0] + p[1]*q[1] + p[2]*q[2]
+    return p[0] * q[0] + p[1] * q[1] + p[2] * q[2]
+
 
 @jit
 def cross(p, q):
@@ -42,6 +45,7 @@ def cross(p, q):
     xyz[1] = p[2] * q[0] - p[0] * q[2]
     xyz[2] = p[0] * q[1] - p[1] * q[0]
     return xyz
+
 
 @jit
 def mod(p):
@@ -60,8 +64,9 @@ def normalize(p):
     p: array
         Cartesian coordinates
     """
-    return p/(dot(p, p))**0.5
-    
+    return p / mod(p)
+
+# We are not using this function!
 @jit
 def perp_vector(p, q, r):
     """
