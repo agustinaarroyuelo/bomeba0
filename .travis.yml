@@ -1,0 +1,26 @@
+language: python
+
+before_install:
+  - . ./scripts/install_miniconda.sh
+  - "export DISPLAY=:99.0"
+  - "sh -e /etc/init.d/xvfb start"
+  - if [ ${MATPLOTLIB} = "1.2" ]; then mkdir $HOME/.matplotlib; fi
+  - if [ ${MATPLOTLIB} = "1.2" ]; then cp ${SRCDIR}/tools/matplotlibrc $HOME/.matplotlib/matplotlibrc; fi
+  #- mkdir -p $HOME/.config/matplotlib; echo "backend: agg" > $HOME/.config/matplotlib/matplotlibrc
+
+install:
+  - . ./scripts/create_testenv.sh
+  - pip install coveralls pylint
+
+env:
+  - PYTHON_VERSION=2.7 TESTCMD=" -vv --with-timer --with-coverage --cover-package=pymc3 -e test_examples -e test_distributions"
+  - PYTHON_VERSION=2.7 RUN_PYLINT="true" TESTCMD=" -vv --with-timer --with-coverage --cover-package=pymc3 pymc3.tests.test_distributions pymc3.tests.test_examples"
+  - PYTHON_VERSION=2.7 TESTCMD=" -vv --with-timer --with-coverage --cover-package=pymc3 pymc3.tests.test_distributions_random"
+  - PYTHON_VERSION=3.6 TESTCMD=" -vv --with-timer --with-coverage --cover-package=pymc3 -e test_examples -e test_distributions"
+  - PYTHON_VERSION=3.6 TESTCMD=" -vv --with-timer --with-coverage --cover-package=pymc3 pymc3.tests.test_distributions pymc3.tests.test_examples"
+  - PYTHON_VERSION=3.6 TESTCMD=" -vv --with-timer --with-coverage --cover-package=pymc3 pymc3.tests.test_distributions_random"
+script:
+  - . ./scripts/test.sh $TESTCMD
+
+after_success:
+- coveralls
