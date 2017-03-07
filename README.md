@@ -1,2 +1,2 @@
 # bomeba0
-Yet another repository
+Yet another repository.
