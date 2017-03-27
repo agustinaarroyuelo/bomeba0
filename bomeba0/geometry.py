@@ -24,7 +24,13 @@ def get_torsional(xyz, a, b, c, d):
     #Measure the angle between the two normal vectors
     u_A_mod = mod(u_A)
     u_B_mod = mod(u_B)
-    tor_rad = np.arccos(dot(u_A, u_B) / (u_A_mod * u_B_mod))
+    val = dot(u_A, u_B) / (u_A_mod * u_B_mod)
+    # better fix?
+    if val > 1:
+        val = 1
+    elif val < -1:
+        val = -1
+    tor_rad = np.arccos(val)
         
     # compute the sign
     sign = dot(u_A, dc)
@@ -32,8 +38,8 @@ def get_torsional(xyz, a, b, c, d):
         return tor_rad
     else:
         return -tor_rad
-
        
+
 def rotation_matrix_3d(u, theta):
     """Return the rotation matrix due to a right hand rotation of theta radians
     around an arbitrary axis/vector u.
