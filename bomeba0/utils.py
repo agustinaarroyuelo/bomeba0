@@ -66,10 +66,71 @@ def normalize(p):
     """
     return p / mod(p)
 
-# We are not using this function!
+
 @jit
 def perp_vector(p, q, r):
     """
     Compute perpendicular vector to (p-q) and (r-q) centered in q.
     """
-    return norm(cross(q - r, q - p)) + q
+    v = cross(q - r, q - p)
+    return v / mod(v) + q
+
+
+def get_angle(a, b, c):
+    """
+    Compute the angle given 3 points
+    xyz: array
+        Cartesian coordinates
+    a-c: int
+        atom index for the three points defining the angle
+    """
+
+    ba = a - b
+    cb = c - b
+
+    ba_mod = mod(ba)
+    cb_mod = mod(cb)
+    val = dot(ba, cb) / (ba_mod * cb_mod)
+    # better fix?
+    if val > 1:
+        val = 1
+    elif val < -1:
+        val = -1
+
+    return np.arccos(val)
+
+# this function also exist inside geometry module
+# The only diferene is that one neex and array xyz and the other do not
+def get_torsional(a, b, c, d):
+    """
+    Compute the torsional angle given four points
+    a-d: int
+        atom index for the four points defining the torsional
+   """
+    
+    # Compute 3 vectors connecting the four points
+    ba = b - a
+    cb = c - b
+    dc = d - c
+    
+    # Compute the normal vector to each plane
+    u_A = cross(ba, cb)
+    u_B = cross(cb, dc)
+
+    #Measure the angle between the two normal vectors
+    u_A_mod = mod(u_A)
+    u_B_mod = mod(u_B)
+    val = dot(u_A, u_B) / (u_A_mod * u_B_mod)
+    # better fix?
+    if val > 1:
+        val = 1
+    elif val < -1:
+        val = -1
+    tor_rad = np.arccos(val)
+        
+    # compute the sign
+    sign = dot(u_A, dc)
+    if sign > 0:
+        return tor_rad
+    else:
+        return -tor_rad
