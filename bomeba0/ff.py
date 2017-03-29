@@ -3,9 +3,7 @@ Draft of a forcefield. At this point only a Lennard Jones term is implemented.
 I have not made any performance test.
 """
 
-from utils import dist
-from numba import jit
-
+from .utils import dist
 
 def LJ(neighbors, xyz, types, par_vdw):
     """
@@ -49,6 +47,6 @@ def LJ(neighbors, xyz, types, par_vdw):
         r_ij = dist(xyz[i], xyz[j])
 
         C6 = (sigma_ij / r_ij) ** 6
-		           
+          
         E_vdw += epsilon_ij * (C6 * C6 - 2 * C6)
     return E_vdw

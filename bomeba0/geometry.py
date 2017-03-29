@@ -1,6 +1,6 @@
 import math
 import numpy as np
-from utils import mod, dot, cross, normalize
+from .utils import mod, dot, cross, normalize
 
 
 def get_torsional(xyz, a, b, c, d):

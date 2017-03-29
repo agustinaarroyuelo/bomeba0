@@ -2,9 +2,9 @@
 A collection of common constants and forcefield parameters
 """
 from collections import namedtuple
-Constants = namedtuple('Constants', ['radians_to_degrees', 'degrees_to_radians', 'pi'])
+Constants = namedtuple('Constants', ['radians_to_degrees', 'degrees_to_radians', 'pi', 'peptide_bond_lenght'])
 constants = Constants(
-    57.29577951308232, 0.017453292519943295, 3.141592653589793)
+    57.29577951308232, 0.017453292519943295, 3.141592653589793, 1.32)
 
 
 """
