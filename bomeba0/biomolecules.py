@@ -1,6 +1,6 @@
 import numpy as np
 from .residues import aa_templates, one_to_three
-from .utils import mod, dot, cross, perp_vector, get_angle, get_torsional
+from .utils import mod, perp_vector, get_angle, get_torsional
 from .geometry import rotation_matrix_3d
 from .constants import constants
 
@@ -10,7 +10,8 @@ class TestTube():
     This is a "container" class instanciated only once (Singleton)
     """
     _instance = None
-    def __new__(cls, solvent=None, temperature=298, force_field='simple_lj', *args, **kwargs):
+    def __new__(cls, solvent=None, temperature=298, force_field='simple_lj',
+    *args, **kwargs):
         if not cls._instance:
             cls._instance = super(TestTube, cls).__new__(
                                 cls, *args, **kwargs)
@@ -23,7 +24,8 @@ class TestTube():
     def energy(self):
         """
         Compute the energy of the system.
-        ToDo: It should be possible to compute partial energy, like without solvent or excluding molecules.
+        ToDo: It should be possible to compute partial energy,
+        like without solvent or excluding molecules.
         """
         pass
 
@@ -49,35 +51,16 @@ class TestTube():
 
 class Protein:
     '''write me'''
-    def __init__(self, sequence, coords=None):
-        '''Initialize a new protein. The array of cartesian coordinates can be specified.
-        If not, coords are built from sequence.'''
+    def __init__(self, sequence):
+        '''Initialize a new protein from a sequence of amino acids'''
         self.sequence = sequence
-        self.coords, self._names = self._checkcoords(sequence, coords)
+        self.coords, self._names, self._offsets = _prot_builder(sequence)
         # add instance of Protein to TestTube automatically
 
     def __len__(self):
         return len(self.sequence)
 
-    def _checkcoords(self, sequence, coords):
-        """
-        If coords is None return default coordinates matching sequence. 
-        If not check that coords is a NumPy array of dimension (N, 3)
-        
-        ToDO: check that coords and sequence match
-        """
-        if coords is not None:
-            if not isinstance(coords, np.ndarray):
-                raise TypeError('Input not a ndarray')
-            elif not (coords.ndim == 2 and coords.shape[1] == 3): 
-                raise ValueError('Dimensions should be (N, 3)')
-            else:
-                return coords
-        else:
-            coords, names = _prot_builder(sequence)
-            return coords, names
-
-    def phi (self, resnum) :
+    def get_phi (self, resnum) :
         """
         Compute phi torsional angle
 
@@ -86,18 +69,18 @@ class Protein:
         resnum : int
             residue number from which to compute torsional
         """
-        ### FIX ME!!!
-        # N_i-Ca_i-C_i-N_(i+1)
-        coords = self.coords
-        offset = 0
-        this_offset = 10
-        a = coords[offset]
-        b = coords[offset + 1]
-        c = coords[offset + 2]
-        d = coords[offset + this_offset]
-        return 180.#get_torsional(a, b, c, d) * constants.radians_to_degrees
+        # C(i-1),N(i),Ca(i),C(i)
+        if resnum != 0:
+            coords = self.coords
+            prev = self._offsets[resnum - 1]
+            this = self._offsets[resnum]
+            a = coords[prev + 2]
+            b = coords[this]
+            c = coords[this + 1]
+            d = coords[this + 2]
+            return get_torsional(a, b, c, d) * constants.radians_to_degrees
 
-    def psi (self, resnum) :
+    def get_psi (self, resnum) :
         """
         Compute psi torsional angle
 
@@ -106,18 +89,18 @@ class Protein:
         resnum : int
             residue number from which to compute torsional
         """
-        ### FIX ME!!!
-        # Ca_i-C_i-N_(i+1)-N_(i+1)
-        coords = self.coords
-        offset = 0 # len(pedazo_previo)
-        this_offset = 10 # len(de resnum)
-        a = coords[offset - this_offset + 1]
-        b = coords[offset]
-        c = coords[offset + 1]
-        d = coords[offset + 2]
-        return 180.#get_torsional(a, b, c, d) * constants.radians_to_degrees
+        # N(i),Ca(i),C(i),N(i+1)
+        if resnum + 1 < len(self.sequence):
+            coords = self.coords
+            next = self._offsets[resnum + 1]
+            this = self._offsets[resnum]
+            a = coords[this]
+            b = coords[this + 1]
+            c = coords[this + 2]
+            d = coords[next]
+            return get_torsional(a, b, c, d) * constants.radians_to_degrees
 
-    def chi (self, resnum, chi_num) :
+    def get_chi (self, resnum, chi_num) :
         """
         Compute chi torsional angle
 
@@ -142,10 +125,15 @@ class Protein:
         # FIX THIS!!!!        
         coords = self.coords
         names = self._names
-        rep_seq = ['1'] * 10
-        b = ['2'] * 10
-        rep_seq.extend(b)
-        rep_seq_nam = ['A'] * 20
+        sequence = self.sequence
+        rep_seq_nam = []
+        rep_seq = []        
+        for idx, aa in enumerate(sequence):
+            lenght = aa_templates[aa].offset
+            seq_nam = aa * lenght
+            res = [str(idx + 1)] * lenght
+            rep_seq_nam.extend(seq_nam)
+            rep_seq.extend(res)
 
 
         fd = open('{}.pdb'.format(filename), 'w')
@@ -167,14 +155,14 @@ def _prot_builder(sequence):
     Build a protein from a template.
     Adapted from fragbuilder
     """
-    pept_coords, pept_at = aa_templates[sequence[0]]
-    pept_lenght = len(pept_coords)
-    for aa in sequence[1:]:
-        tmp_coords, tmp_at = aa_templates[aa]
+    pept_coords, pept_at, _ = aa_templates[sequence[0]]
+    offsets = [0]
+    for idx, aa in enumerate(sequence[1:]):
+        tmp_coords, tmp_at, offset = aa_templates[aa]
         
-        v3 = pept_coords[2]  # C
-        v2 = pept_coords[1]  # CA
-        v1 = pept_coords[0]  # N
+        v3 = pept_coords[2 + offsets[idx]]  # C
+        v2 = pept_coords[1 + offsets[idx]]  # CA
+        v1 = pept_coords[0 + offsets[idx]]  # N
         
         connectionpoint = v3 + (v2 - v1) / mod(v2 - v1) * constants.peptide_bond_lenght
         connectionvector = tmp_coords[0] - connectionpoint
@@ -205,6 +193,8 @@ def _prot_builder(sequence):
         tmp_coords = tmp_coords + center2
         
         pept_at.extend(tmp_at)
+        offsets.append(offsets[idx] + offset)
         pept_coords = np.concatenate([pept_coords, tmp_coords])
-
-    return pept_coords, pept_at
+        
+    offsets.append(offsets[-1] + offset)
+    return pept_coords, pept_at, offsets

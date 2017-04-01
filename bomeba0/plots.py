@@ -27,8 +27,8 @@ def plot_ramachandran(pose, scatter=True, ax=None):
     phi = []
     psi = []
     for i in range(len(pose)):
-        phi.append(pose.phi(i))
-        psi.append(pose.psi(i))
+        phi.append(pose.get_phi(i))
+        psi.append(pose.get_psi(i))
 
     if scatter:
         ax.scatter(phi, psi)

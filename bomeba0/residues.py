@@ -4,7 +4,7 @@ import numpy as np
 Templates for amino acidic residues
 """
 
-AA_info = namedtuple('AA_info', 'coords atom_names')
+AA_info = namedtuple('AA_info', 'coords atom_names offset')
 
 A_info = AA_info(coords=np.array(
     [[ -6.76999986e-01,  -1.23000002e+00,  -4.90999997e-01,],
@@ -17,7 +17,8 @@ A_info = AA_info(coords=np.array(
      [ -1.60500002e+00,   1.00600004e+00,   6.90999985e-01],
      [ -2.84999996e-01,   3.42000008e-01,   1.68099999e+00],
      [ -5.29999994e-02,   1.86099994e+00,   7.83999979e-01]]),
-     atom_names=['N', 'CA', 'C', 'O', 'CB', 'H', 'HA', '1HB', '2HB', '3HB'])
+     atom_names = ['N', 'CA', 'C', 'O', 'CB', 'H', 'HA', '1HB', '2HB', '3HB'],
+     offset = 10)
 
 G_info = AA_info(coords=np.array(
     [[-1.19500005,  0.20100001, -0.20600000],
@@ -27,10 +28,11 @@ G_info = AA_info(coords=np.array(
      [-1.55799997, -0.33300000,  0.66000003],
      [ 0.48199999,  1.33700001, -0.51400000],
      [ 0.43399999, -0.15899999, -1.47899997]]),
-     atom_names=['N', 'CA', 'C', 'O', 'H', '1HA', '2HA'])
+     atom_names = ['N', 'CA', 'C', 'O', 'H', '1HA', '2HA'],
+     offset = 7)
 
 # extend to 20 aminoacids
 aa_templates = {"A": A_info, "G": G_info}
 
 # extend to 20 aminoacids
-one_to_three = {'A': 'ALA'}
+one_to_three = {'A': 'ALA', 'G': 'GLY'}
