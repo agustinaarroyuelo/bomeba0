@@ -38,7 +38,6 @@ class TestTube():
             print('We already have a copy of {:s} in the test tube!'.format(name))
         else:
             molecules.append(name)
-        print(molecules)
     
     def remove(self, name):
         """
@@ -55,13 +54,12 @@ class Protein:
         '''Initialize a new protein from a sequence of amino acids'''
         self.sequence = sequence
         self.coords, self._names, self._offsets = _prot_builder(sequence)
-        print(self._names)
         # add instance of Protein to TestTube automatically
 
     def __len__(self):
         return len(self.sequence)
 
-    def get_phi (self, resnum) :
+    def get_phi(self, resnum):
         """
         Compute phi torsional angle
 
@@ -75,13 +73,14 @@ class Protein:
             coords = self.coords
             prev = self._offsets[resnum - 1]
             this = self._offsets[resnum]
+
             a = coords[prev + 2]
             b = coords[this]
             c = coords[this + 1]
             d = coords[this + 2]
             return get_torsional(a, b, c, d) * constants.radians_to_degrees
 
-    def get_psi (self, resnum) :
+    def get_psi(self, resnum):
         """
         Compute psi torsional angle
 
@@ -101,7 +100,7 @@ class Protein:
             d = coords[next]
             return get_torsional(a, b, c, d) * constants.radians_to_degrees
 
-    def get_chi (self, resnum, chi_num) :
+    def get_chi(self, resnum, chi_num):
         """
         Compute chi torsional angle
 
@@ -113,37 +112,6 @@ class Protein:
             number of chi, some residues have more than one chi torsional:
         """
         pass
-
-
-    def set_phi (self, resnum) :
-        """
-        Set phi torsional angle
-
-        Parameters
-        ----------
-        resnum : int
-            residue number from which to compute torsional
-        """
-        # C(i-1),N(i),Ca(i),C(i)
-        if resnum != 0:
-            coords = self.coords
-            prev = self._offsets[resnum - 1]
-            this = self._offsets[resnum]
-            
-            i = prev + 2 
-            
-            coords = coords - coords[this]
-            R = rotation_matrix_3d((coords[j]), theta)
-            xyz[:i+1] = xyz_s[:i+1] 
-            xyz[i+1:] = np.dot(xyz_s[i+1:], R)
-    
-            coords[]
-            
-            a = coords[prev + 2]
-            b = coords[this]
-            c = coords[this + 1]
-            d = coords[this + 2]
-            return set_torsional(a, b, c, d) * constants.radians_to_degrees
 
 
     def dump_pdb(self, filename) :
