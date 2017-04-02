@@ -55,6 +55,7 @@ class Protein:
         '''Initialize a new protein from a sequence of amino acids'''
         self.sequence = sequence
         self.coords, self._names, self._offsets = _prot_builder(sequence)
+        print(self._names)
         # add instance of Protein to TestTube automatically
 
     def __len__(self):
@@ -113,6 +114,7 @@ class Protein:
         """
         pass
 
+
     def dump_pdb(self, filename) :
         """
         Write a protein to a pdb file
@@ -122,19 +124,17 @@ class Protein:
         filename : string
             name of the file without the pdb extension
         """
-        # FIX THIS!!!!        
         coords = self.coords
         names = self._names
         sequence = self.sequence
         rep_seq_nam = []
-        rep_seq = []        
+        rep_seq = []
         for idx, aa in enumerate(sequence):
             lenght = aa_templates[aa].offset
             seq_nam = aa * lenght
             res = [str(idx + 1)] * lenght
             rep_seq_nam.extend(seq_nam)
             rep_seq.extend(res)
-
 
         fd = open('{}.pdb'.format(filename), 'w')
         for i in range(len(coords)):
@@ -155,8 +155,10 @@ def _prot_builder(sequence):
     Build a protein from a template.
     Adapted from fragbuilder
     """
-    pept_coords, pept_at, _ = aa_templates[sequence[0]]
-    offsets = [0]
+    names = []
+    pept_coords, pept_at, offset = aa_templates[sequence[0]]
+    names.extend(pept_at)
+    offsets = [0, offset]
     for idx, aa in enumerate(sequence[1:]):
         tmp_coords, tmp_at, offset = aa_templates[aa]
         
@@ -192,9 +194,9 @@ def _prot_builder(sequence):
         tmp_coords = tmp_coords @ rotation_matrix_3d(ba, angle2)
         tmp_coords = tmp_coords + center2
         
-        pept_at.extend(tmp_at)
-        offsets.append(offsets[idx] + offset)
+        names.extend(tmp_at)
+        offsets.append(offsets[idx+1] + offset)
         pept_coords = np.concatenate([pept_coords, tmp_coords])
-        
+
     offsets.append(offsets[-1] + offset)
-    return pept_coords, pept_at, offsets
+    return pept_coords, names, offsets
