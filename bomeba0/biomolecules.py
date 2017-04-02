@@ -129,6 +129,16 @@ class Protein:
             coords = self.coords
             prev = self._offsets[resnum - 1]
             this = self._offsets[resnum]
+            
+            i = prev + 2 
+            
+            coords = coords - coords[this]
+            R = rotation_matrix_3d((coords[j]), theta)
+            xyz[:i+1] = xyz_s[:i+1] 
+            xyz[i+1:] = np.dot(xyz_s[i+1:], R)
+    
+            coords[]
+            
             a = coords[prev + 2]
             b = coords[this]
             c = coords[this + 1]
@@ -201,7 +211,7 @@ def _prot_builder(sequence):
 
         ba =  axis1 - center1
         tmp_coords = tmp_coords - center1
-        tmp_coords = np.dot(tmp_coords, rotation_matrix_3d(ba, angle1))
+        tmp_coords = tmp_coords @ rotation_matrix_3d(ba, angle1)
         tmp_coords = tmp_coords + center1
 
         axis2 = tmp_coords[1] - connectionpoint
@@ -212,7 +222,7 @@ def _prot_builder(sequence):
         center2 = connectionpoint
         ba =  axis2 - center2
         tmp_coords = tmp_coords - center2
-        tmp_coords = np.dot(tmp_coords, rotation_matrix_3d(ba, angle2))
+        tmp_coords = tmp_coords @ rotation_matrix_3d(ba, angle2)
         tmp_coords = tmp_coords + center2
         
         names.extend(tmp_at)
