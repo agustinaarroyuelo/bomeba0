@@ -115,6 +115,27 @@ class Protein:
         pass
 
 
+    def set_phi (self, resnum) :
+        """
+        Set phi torsional angle
+
+        Parameters
+        ----------
+        resnum : int
+            residue number from which to compute torsional
+        """
+        # C(i-1),N(i),Ca(i),C(i)
+        if resnum != 0:
+            coords = self.coords
+            prev = self._offsets[resnum - 1]
+            this = self._offsets[resnum]
+            a = coords[prev + 2]
+            b = coords[this]
+            c = coords[this + 1]
+            d = coords[this + 2]
+            return set_torsional(a, b, c, d) * constants.radians_to_degrees
+
+
     def dump_pdb(self, filename) :
         """
         Write a protein to a pdb file
@@ -180,7 +201,7 @@ def _prot_builder(sequence):
 
         ba =  axis1 - center1
         tmp_coords = tmp_coords - center1
-        tmp_coords = tmp_coords @ rotation_matrix_3d(ba, angle1)
+        tmp_coords = np.dot(tmp_coords, rotation_matrix_3d(ba, angle1))
         tmp_coords = tmp_coords + center1
 
         axis2 = tmp_coords[1] - connectionpoint
@@ -191,7 +212,7 @@ def _prot_builder(sequence):
         center2 = connectionpoint
         ba =  axis2 - center2
         tmp_coords = tmp_coords - center2
-        tmp_coords = tmp_coords @ rotation_matrix_3d(ba, angle2)
+        tmp_coords = np.dot(tmp_coords, rotation_matrix_3d(ba, angle2))
         tmp_coords = tmp_coords + center2
         
         names.extend(tmp_at)
