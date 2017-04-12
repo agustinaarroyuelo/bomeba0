@@ -114,7 +114,7 @@ class Protein:
         pass
 
 
-    def dump_pdb(self, filename) :
+    def dump_pdb(self, filename, b_factor=None) :
         """
         Write a protein to a pdb file
 
@@ -122,10 +122,16 @@ class Protein:
         ----------
         filename : string
             name of the file without the pdb extension
+        b_factor : list optional
+            list of values to fill the b-factor column. one value per atom
         """
         coords = self.coords
         names = self._names
         sequence = self.sequence
+        
+        if b_factor is None:
+            b_factor = [1.] * len(coords)
+
         rep_seq_nam = []
         rep_seq = []
         for idx, aa in enumerate(sequence):
@@ -144,7 +150,7 @@ class Protein:
             element = name[0]
             if element in ['1', '2', '3']:
                 element = name[1]
-            line = "ATOM {:>6s}{:>4s} {:>4s} {:>5s}    {:8.3f}{:8.3f}{:8.3f}  1.00  0.00           {:2s}  \n".format(serial, name, resname, resseq, *coords[i], element)
+            line = "ATOM {:>6s}{:>4s} {:>4s} {:>5s}    {:8.3f}{:8.3f}{:8.3f}  1.00 {:5.2f}           {:2s}  \n".format(serial, name, resname, resseq, *coords[i], b_factor[i], element)
             fd.write(line)
         fd.close()
 
@@ -155,11 +161,11 @@ def _prot_builder(sequence):
     Adapted from fragbuilder
     """
     names = []
-    pept_coords, pept_at, offset = aa_templates[sequence[0]]
+    pept_coords, pept_at, _, offset = aa_templates[sequence[0]]
     names.extend(pept_at)
     offsets = [0, offset]
     for idx, aa in enumerate(sequence[1:]):
-        tmp_coords, tmp_at, offset = aa_templates[aa]
+        tmp_coords, tmp_at, _, offset = aa_templates[aa]
         
         v3 = pept_coords[2 + offsets[idx]]  # C
         v2 = pept_coords[1 + offsets[idx]]  # CA

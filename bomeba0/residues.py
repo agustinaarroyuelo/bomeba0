@@ -4,7 +4,7 @@ import numpy as np
 Templates for amino acidic residues
 """
 
-AA_info = namedtuple('AA_info', 'coords atom_names offset')
+AA_info = namedtuple('AA_info', 'coords atom_names bonds offset')
 
 A_info = AA_info(coords=np.array(
     [[ -6.76999986e-01,  -1.23000002e+00,  -4.90999997e-01,],
@@ -18,6 +18,8 @@ A_info = AA_info(coords=np.array(
      [ -2.84999996e-01,   3.42000008e-01,   1.68099999e+00],
      [ -5.29999994e-02,   1.86099994e+00,   7.83999979e-01]]),
      atom_names = ['N', 'CA', 'C', 'O', 'CB', 'H', 'HA', '1HB', '2HB', '3HB'],
+     bonds = [(0,1), (0, 5), (1, 2), (1,6), (1, 4), (2, 3),
+     (4, 7), (4, 8), (4, 9)],
      offset = 10)
 
 G_info = AA_info(coords=np.array(
@@ -29,6 +31,7 @@ G_info = AA_info(coords=np.array(
      [ 0.48199999,  1.33700001, -0.51400000],
      [ 0.43399999, -0.15899999, -1.47899997]]),
      atom_names = ['N', 'CA', 'C', 'O', 'H', '1HA', '2HA'],
+     bonds = [(0,1), (0, 4), (1, 2), (1,5), (1,6), (2, 3)],
      offset = 7)
 
 # extend to 20 aminoacids
