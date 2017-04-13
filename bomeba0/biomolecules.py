@@ -3,6 +3,7 @@ from .residues import aa_templates, one_to_three
 from .utils import mod, perp_vector, get_angle, get_torsional
 from .geometry import rotation_matrix_3d
 from .constants import constants
+from .ff import compute_neighbors, LJ
 
 
 class TestTube():
@@ -26,6 +27,7 @@ class TestTube():
         Compute the energy of the system.
         ToDo: It should be possible to compute partial energy,
         like without solvent or excluding molecules.
+        At the moment this method lives in Protein class
         """
         pass
 
@@ -53,11 +55,20 @@ class Protein:
     def __init__(self, sequence):
         '''Initialize a new protein from a sequence of amino acids'''
         self.sequence = sequence
-        self.coords, self._names, self._offsets, self._exclusions = _prot_builder(sequence)
+        self.coords, self._names, self._elements, self._offsets, self._exclusions = _prot_builder(sequence)
         # add instance of Protein to TestTube automatically
 
     def __len__(self):
         return len(self.sequence)
+        
+    def energy(self, cut_off=6):
+        """
+        Write ME!
+        """
+        coords = self.coords
+        neighbors = compute_neighbors(coords, self._exclusions, cut_off)
+        energy = LJ(neighbors, coords, self._elements)
+        return energy
 
     def get_phi(self, resnum):
         """
@@ -127,6 +138,7 @@ class Protein:
         """
         coords = self.coords
         names = self._names
+        elements = self._elements
         sequence = self.sequence
         
         if b_factor is None:
@@ -147,10 +159,7 @@ class Protein:
             name = names[i]
             resname = one_to_three[rep_seq_nam[i]]
             resseq = rep_seq[i]
-            element = name[0]
-            if element in ['1', '2', '3']:
-                element = name[1]
-            line = "ATOM {:>6s}{:>4s} {:>4s} {:>5s}    {:8.3f}{:8.3f}{:8.3f}  1.00 {:5.2f}           {:2s}  \n".format(serial, name, resname, resseq, *coords[i], b_factor[i], element)
+            line = "ATOM {:>6s}{:>4s} {:>4s} {:>5s}    {:8.3f}{:8.3f}{:8.3f}  1.00 {:5.2f}           {:2s}  \n".format(serial, name, resname, resseq, *coords[i], b_factor[i], elements[i])
             fd.write(line)
         fd.close()
 
@@ -212,8 +221,16 @@ def _prot_builder(sequence):
 
     offsets.append(offsets[-1] + offset)
     exclusions = _exclusiones_1_3(bonds_mol)
-        
-    return pept_coords, names, offsets, exclusions
+    
+    # generate a list with the names of chemical elements
+    elements = []
+    for i in names:
+        element = i[0]
+        if element in ['1', '2', '3']:
+            element = i[1]
+        elements.append(element)
+    
+    return pept_coords, names, elements, offsets, exclusions
     
     
 def _exclusiones_1_3(bonds_mol):
