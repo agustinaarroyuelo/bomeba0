@@ -53,7 +53,7 @@ class Protein:
     def __init__(self, sequence):
         '''Initialize a new protein from a sequence of amino acids'''
         self.sequence = sequence
-        self.coords, self._names, self._offsets = _prot_builder(sequence)
+        self.coords, self._names, self._offsets, self._exclusions = _prot_builder(sequence)
         # add instance of Protein to TestTube automatically
 
     def __len__(self):
@@ -161,11 +161,12 @@ def _prot_builder(sequence):
     Adapted from fragbuilder
     """
     names = []
-    pept_coords, pept_at, _, offset = aa_templates[sequence[0]]
+    pept_coords, pept_at, bonds, offset = aa_templates[sequence[0]]
     names.extend(pept_at)
     offsets = [0, offset]
+    bonds_mol = bonds
     for idx, aa in enumerate(sequence[1:]):
-        tmp_coords, tmp_at, _, offset = aa_templates[aa]
+        tmp_coords, tmp_at, bonds, offset = aa_templates[aa]
         
         v3 = pept_coords[2 + offsets[idx]]  # C
         v2 = pept_coords[1 + offsets[idx]]  # CA
@@ -203,5 +204,33 @@ def _prot_builder(sequence):
         offsets.append(offsets[idx+1] + offset)
         pept_coords = np.concatenate([pept_coords, tmp_coords])
 
+        # create a list of bonds from the template-bonds by adding the offset
+        prev_offset = offsets[-3]
+        last_offset = offsets[-2]
+        bonds_mol.extend([(i + last_offset, j + last_offset) for i, j in bonds] + [(2 + prev_offset, last_offset)])
+
     offsets.append(offsets[-1] + offset)
-    return pept_coords, names, offsets
+    exclusions = _exclusiones_1_3(bonds_mol)
+        
+    return pept_coords, names, offsets, exclusions
+    
+    
+def _exclusiones_1_3(bonds_mol):
+    # based on the information inside bonds_mol determine the 1-3 exclusions
+    # write a not-naive version of this
+    angles_mol = []
+    for idx, i in enumerate(bonds_mol):
+        a, b = i
+        for j in bonds_mol[idx+1:]:
+            c, d = j
+            if (a == c and b != d):
+                angles_mol.append((b, d))
+            elif (a == d and b != c):
+                angles_mol.append((b, c))
+            elif b == c and d != a:
+                angles_mol.append((a, d))
+            elif b == d and c != a:
+                angles_mol.append((a, c))
+
+    exclusions = bonds_mol + angles_mol
+    return set([tuple(sorted(i)) for i in exclusions])
