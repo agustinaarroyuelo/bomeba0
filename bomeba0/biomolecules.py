@@ -161,10 +161,11 @@ def _prot_builder(sequence):
     Adapted from fragbuilder
     """
     names = []
+    bonds_mol = []
     pept_coords, pept_at, bonds, offset = aa_templates[sequence[0]]
     names.extend(pept_at)
+    bonds_mol.extend(bonds)
     offsets = [0, offset]
-    bonds_mol = bonds
     for idx, aa in enumerate(sequence[1:]):
         tmp_coords, tmp_at, bonds, offset = aa_templates[aa]
         
