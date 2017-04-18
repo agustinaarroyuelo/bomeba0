@@ -3,6 +3,7 @@ from .residues import aa_templates, one_to_three
 from .utils import mod, perp_vector, get_angle, get_torsional
 from .geometry import rotation_matrix_3d
 from .constants import constants
+from .ff import compute_neighbors, LJ
 
 
 class TestTube():
@@ -26,6 +27,7 @@ class TestTube():
         Compute the energy of the system.
         ToDo: It should be possible to compute partial energy,
         like without solvent or excluding molecules.
+        At the moment this method lives in Protein class
         """
         pass
 
@@ -53,11 +55,20 @@ class Protein:
     def __init__(self, sequence):
         '''Initialize a new protein from a sequence of amino acids'''
         self.sequence = sequence
-        self.coords, self._names, self._offsets = _prot_builder(sequence)
+        self.coords, self._names, self._elements, self._offsets, self._exclusions = _prot_builder(sequence)
         # add instance of Protein to TestTube automatically
 
     def __len__(self):
         return len(self.sequence)
+        
+    def energy(self, cut_off=6):
+        """
+        Write ME!
+        """
+        coords = self.coords
+        neighbors = compute_neighbors(coords, self._exclusions, cut_off)
+        energy = LJ(neighbors, coords, self._elements)
+        return energy
 
     def get_phi(self, resnum):
         """
@@ -114,7 +125,7 @@ class Protein:
         pass
 
 
-    def dump_pdb(self, filename) :
+    def dump_pdb(self, filename, b_factor=None) :
         """
         Write a protein to a pdb file
 
@@ -122,10 +133,17 @@ class Protein:
         ----------
         filename : string
             name of the file without the pdb extension
+        b_factor : list optional
+            list of values to fill the b-factor column. one value per atom
         """
         coords = self.coords
         names = self._names
+        elements = self._elements
         sequence = self.sequence
+        
+        if b_factor is None:
+            b_factor = [1.] * len(coords)
+
         rep_seq_nam = []
         rep_seq = []
         for idx, aa in enumerate(sequence):
@@ -141,10 +159,7 @@ class Protein:
             name = names[i]
             resname = one_to_three[rep_seq_nam[i]]
             resseq = rep_seq[i]
-            element = name[0]
-            if element in ['1', '2', '3']:
-                element = name[1]
-            line = "ATOM {:>6s}{:>4s} {:>4s} {:>5s}    {:8.3f}{:8.3f}{:8.3f}  1.00  0.00           {:2s}  \n".format(serial, name, resname, resseq, *coords[i], element)
+            line = "ATOM {:>6s}{:>4s} {:>4s} {:>5s}    {:8.3f}{:8.3f}{:8.3f}  1.00 {:5.2f}           {:2s}  \n".format(serial, name, resname, resseq, *coords[i], b_factor[i], elements[i])
             fd.write(line)
         fd.close()
 
@@ -155,11 +170,13 @@ def _prot_builder(sequence):
     Adapted from fragbuilder
     """
     names = []
-    pept_coords, pept_at, offset = aa_templates[sequence[0]]
+    bonds_mol = []
+    pept_coords, pept_at, bonds, offset = aa_templates[sequence[0]]
     names.extend(pept_at)
+    bonds_mol.extend(bonds)
     offsets = [0, offset]
     for idx, aa in enumerate(sequence[1:]):
-        tmp_coords, tmp_at, offset = aa_templates[aa]
+        tmp_coords, tmp_at, bonds, offset = aa_templates[aa]
         
         v3 = pept_coords[2 + offsets[idx]]  # C
         v2 = pept_coords[1 + offsets[idx]]  # CA
@@ -197,5 +214,41 @@ def _prot_builder(sequence):
         offsets.append(offsets[idx+1] + offset)
         pept_coords = np.concatenate([pept_coords, tmp_coords])
 
+        # create a list of bonds from the template-bonds by adding the offset
+        prev_offset = offsets[-3]
+        last_offset = offsets[-2]
+        bonds_mol.extend([(i + last_offset, j + last_offset) for i, j in bonds] + [(2 + prev_offset, last_offset)])
+
     offsets.append(offsets[-1] + offset)
-    return pept_coords, names, offsets
+    exclusions = _exclusiones_1_3(bonds_mol)
+    
+    # generate a list with the names of chemical elements
+    elements = []
+    for i in names:
+        element = i[0]
+        if element in ['1', '2', '3']:
+            element = i[1]
+        elements.append(element)
+    
+    return pept_coords, names, elements, offsets, exclusions
+    
+    
+def _exclusiones_1_3(bonds_mol):
+    # based on the information inside bonds_mol determine the 1-3 exclusions
+    # write a not-naive version of this
+    angles_mol = []
+    for idx, i in enumerate(bonds_mol):
+        a, b = i
+        for j in bonds_mol[idx+1:]:
+            c, d = j
+            if (a == c and b != d):
+                angles_mol.append((b, d))
+            elif (a == d and b != c):
+                angles_mol.append((b, c))
+            elif b == c and d != a:
+                angles_mol.append((a, d))
+            elif b == d and c != a:
+                angles_mol.append((a, c))
+
+    exclusions = bonds_mol + angles_mol
+    return set([tuple(sorted(i)) for i in exclusions])
