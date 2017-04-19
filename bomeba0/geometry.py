@@ -1,6 +1,7 @@
 import math
 import numpy as np
 from .utils import mod, dot, cross, normalize
+from numba import jit
 
 
 def get_torsional(xyz, a, b, c, d):
@@ -11,17 +12,17 @@ def get_torsional(xyz, a, b, c, d):
     a-d: int
         atom index for the four points defining the torsional
    """
-    
+
     # Compute 3 vectors connecting the four points
     ba = xyz[b] - xyz[a]
     cb = xyz[c] - xyz[b]
     dc = xyz[d] - xyz[c]
-    
+
     # Compute the normal vector to each plane
     u_A = cross(ba, cb)
     u_B = cross(cb, dc)
 
-    #Measure the angle between the two normal vectors
+    # Measure the angle between the two normal vectors
     u_A_mod = mod(u_A)
     u_B_mod = mod(u_B)
     val = dot(u_A, u_B) / (u_A_mod * u_B_mod)
@@ -31,15 +32,16 @@ def get_torsional(xyz, a, b, c, d):
     elif val < -1:
         val = -1
     tor_rad = np.arccos(val)
-        
+
     # compute the sign
     sign = dot(u_A, dc)
     if sign > 0:
         return tor_rad
     else:
         return -tor_rad
-       
 
+
+@jit
 def rotation_matrix_3d(u, theta):
     """Return the rotation matrix due to a right hand rotation of theta radians
     around an arbitrary axis/vector u.
@@ -53,29 +55,45 @@ def rotation_matrix_3d(u, theta):
     ct = math.cos(theta)
     mct = 1 - ct
 
-    # given that the matrix is symmetric (except for a sing) it should be possible
-    # to write it in a more efficient way
-    R = np.array(
-        [[  ct+x*x*mct, x*y*mct-z*st, x*z*mct+y*st],
-         [y*x*mct+z*st,   ct+y*y*mct, y*z*mct-x*st],
-         [z*x*mct-y*st, z*y*mct+x*st,   ct+z*z*mct]])
+    # filling the matrix by indexing each element is faster (with jit)
+    # than writting np.array([[, , ], [, , ], [, , ]])
+    R = np.zeros((3, 3))
+    R[0, 0] = ct + x * x * mct
+    R[0, 1] = y * x * mct - z * st
+    R[0, 2] = x * z * mct + y * st
+    R[1, 0] = y * x * mct + z * st
+    R[1, 1] = ct + y * y * mct
+    R[1, 2] = y * z * mct - x * st
+    R[2, 0] = x * z * mct - y * st
+    R[2, 1] = y * z * mct + x * st
+    R[2, 2] = ct + z * z * mct
 
     return R
 
 
-def set_torsional(xyz, i, j, theta):
+@jit
+def set_torsional(xyz, i, j, theta_rad, idx_to_fix):
     """
-    rotate a molecule an angle theta around the i-j bond
+    rotate a set of coordinates around the i-j axis by theta_rad
     xyz: array
         Cartesian coordinates
     i: int 
         atom i
     j: int 
-        atom j
-    theta: float
+        atom k
+    theta_rad: float
         rotation angle in radians
+    idx_to_fix: tuple
+        The rotation is done in such a way that all atoms with and index larger
+        than i are rotated and the rest are kept fixed. Given the way atoms are
+        internally ordered the rotation could introduce distorsions on the
+        geometry of the protein. This are the index of the atoms that should
+        have not been rotated.
     """
     xyz_s = xyz - xyz[i]
-    R = rotation_matrix_3d((xyz_s[j]), theta)
-    xyz[:i+1] = xyz_s[:i+1] 
-    xyz[i+1:] = np.dot(xyz_s[i+1:], R)
+    R = rotation_matrix_3d((xyz_s[j]), theta_rad)
+    xyz[:j] = xyz_s[:j]
+    xyz[j:] = xyz_s[j:] @ R
+    xyz[i + idx_to_fix[0]:i + idx_to_fix[1]
+        ] = xyz_s[i + idx_to_fix[0]:i + idx_to_fix[1]]
+    # TODO return to original position????
