@@ -60,6 +60,31 @@ class Protein:
     def __len__(self):
         return len(self.sequence)
         
+    def at_coords(self, resnum, at_name=None):
+        """
+        Returns the coordinate of an specified residue and atom (optionally)
+
+        Parameters
+        ----------
+        resnum : int
+            residue number from which to obtain the coordinates
+        at_name : string or None
+            atom name from which to obtain the coordinates. If none is provided
+            it will return the coordinates of the whole residue (default).
+
+        Returns
+        ----------
+        coords: array
+            Cartesian coordinates of a given residue or from an atom in the
+            given residue.
+        """
+        offset_0, offset_1 = self._offsets[resnum:resnum+2]
+        if at_name is None:
+            return self.coords[offset_0 : offset_1]
+        else:
+            at_idx = self._names[offset_0:offset_1].index(at_name)
+            return self.coords[offset_0 + at_idx]
+        
     def energy(self, cut_off=6):
         """
         Write ME!

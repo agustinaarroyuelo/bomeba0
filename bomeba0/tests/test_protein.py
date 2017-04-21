@@ -65,3 +65,9 @@ def test_set_get_torsionals():
         
     assert prot.get_phi(0) is np.nan
     assert prot.get_psi(len(poly_gly)-1) is np.nan
+    
+def test_at_coords():
+    assert_almost_equal(prot.at_coords(1), prot.coords[7:])
+    assert_almost_equal(prot.at_coords(1, 'N'), prot.coords[7])
+    
+    
