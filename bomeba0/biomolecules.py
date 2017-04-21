@@ -1,10 +1,9 @@
 import numpy as np
 from .residues import aa_templates, one_to_three
 from .utils import mod, perp_vector, get_angle, get_torsional
-from .geometry import rotation_matrix_3d
+from .geometry import rotation_matrix_3d, set_torsional
 from .constants import constants
 from .ff import compute_neighbors, LJ
-
 
 class TestTube():
     """
@@ -90,6 +89,8 @@ class Protein:
             c = coords[this + 1]
             d = coords[this + 2]
             return get_torsional(a, b, c, d) * constants.radians_to_degrees
+        else:
+            return np.nan
 
     def get_psi(self, resnum):
         """
@@ -101,7 +102,7 @@ class Protein:
             residue number from which to compute torsional
         """
         # N(i),Ca(i),C(i),N(i+1)
-        if resnum + 1 < len(self.sequence):
+        if resnum + 1 < len(self):
             coords = self.coords
             next = self._offsets[resnum + 1]
             this = self._offsets[resnum]
@@ -110,6 +111,8 @@ class Protein:
             c = coords[this + 2]
             d = coords[next]
             return get_torsional(a, b, c, d) * constants.radians_to_degrees
+        else:
+            return np.nan
 
     def get_chi(self, resnum, chi_num):
         """
@@ -122,10 +125,83 @@ class Protein:
         chi_num : int
             number of chi, some residues have more than one chi torsional:
         """
-        pass
+        return np.nan
+
+    def get_torsionals(self, sidechain=True):
+        """
+        Compute all phi, psi and chi torsional angles of a given molecule
+
+        Parameters
+        ----------
+        sidechain : Boolean
+            Wheter to compute all torsional angles including the chi angles or
+            only backbone ones. The default (True) is to include the sidechain.
+
+        Returns
+        ----------
+        DataFrame with the type of torsional angles as colums: # ToDo
+        
+        """
+        for i in range(len(self)):
+            tors = []
+            tors.append(self.get_phi(i))
+            tors.append(self.get_psi(i))
+            if sidechain:
+                for j in range(2):
+                    tors.append(self.get_chi(i, j))
+                print(('{:8.2f}' * 4).format(*tors))
+            else:
+                print(('{:8.2f}' * 2).format(*tors))
 
 
-    def dump_pdb(self, filename, b_factor=None) :
+    def set_phi(self, resnum, theta):
+        """
+        set the phi torsional angle to the value theta
+
+        Parameters
+        ----------
+        resnum : int
+            residue number from which to compute torsional
+        theta : float
+            value of the angle to set in degrees
+        """
+        # C(i-1),N(i),Ca(i),C(i)
+        if resnum != 0:
+            theta_rad = (self.get_phi(resnum) - theta) * constants.degrees_to_radians
+            xyz = self.coords
+            i = self._offsets[resnum]
+            j = i + 1
+            # the hydrogen attached to N(i) was unnecessarily rotated, so we
+            # need to fix it
+            resname = self.sequence[resnum]
+            H = aa_templates[resname].atom_names.index('H')
+            idx_to_fix = (H, H+1)
+            set_torsional(xyz, i, j, theta_rad, idx_to_fix)
+
+    def set_psi(self, resnum, theta):
+        """
+        set the psi torsional angle to the value theta
+
+        Parameters
+        ----------
+        resnum : int
+            residue number from which to compute torsional
+        theta : float
+            value of the angle to set in degrees
+        """
+        # N(i),Ca(i),C(i),N(i+1)
+        if resnum + 1 < len(self):
+            theta_rad = (self.get_psi(resnum) - theta) * constants.degrees_to_radians
+            xyz = self.coords
+            i = self._offsets[resnum] + 1
+            j = i + 1
+            # We have made a rotation starting from the next residue and we
+            # left C and O atoms unrotated, now we fix this
+            resname = self.sequence[resnum]
+            idx_to_fix = (3, aa_templates[resname].offset - 1)
+            set_torsional(xyz, i, j, theta_rad, idx_to_fix)
+
+    def dump_pdb(self, filename, b_factor=None):
         """
         Write a protein to a pdb file
 
@@ -235,7 +311,7 @@ def _prot_builder(sequence):
     
 def _exclusiones_1_3(bonds_mol):
     # based on the information inside bonds_mol determine the 1-3 exclusions
-    # write a not-naive version of this
+    # ToDo: write a not-naive version of this
     angles_mol = []
     for idx, i in enumerate(bonds_mol):
         a, b = i

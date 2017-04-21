@@ -49,3 +49,19 @@ def test_offsets():
     # this test is valid for GG
     offsets = prot._offsets
     assert [0, 7, 14, 21] == offsets
+    
+def test_set_get_torsionals():
+    # create a molecule set the backbone torsional angles and then check that 
+    # the actual values corresponds to the set ones.
+    poly_gly = Protein('GGGGGG')
+
+    for i in range(len(poly_gly)):
+        poly_gly.set_phi(i, -60.)
+        poly_gly.set_psi(i, -40.)
+
+    for i in range(1, len(poly_gly)-1):
+        assert_almost_equal(poly_gly.get_phi(i), -60., 5)
+        assert_almost_equal(poly_gly.get_psi(i), -40., 5)
+        
+    assert prot.get_phi(0) is np.nan
+    assert prot.get_psi(len(poly_gly)-1) is np.nan
