@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from .residues import aa_templates, one_to_three
 from .utils import mod, perp_vector, get_angle, get_torsional
 from .geometry import rotation_matrix_3d, set_torsional
@@ -141,7 +142,7 @@ class Biomolecule():
 class Protein(Biomolecule):
     """Protein object"""
     def __init__(self, sequence, mol_name='lala'):
-        """Initialize a new protein from a sequence of amino acids"""
+        """initialize a new protein from a sequence of amino acids"""
         self.sequence = sequence
         self.coords, self._names, self._elements, self._offsets, self._exclusions = _prot_builder(sequence)
         self.mol_name = mol_name
@@ -205,31 +206,40 @@ class Protein(Biomolecule):
         """
         return np.nan
 
-    def get_torsionals(self, sidechain=True):
+
+    def get_torsionals(self, sidechain=True, n_digits=2):
         """
         Compute all phi, psi and chi torsional angles of a given molecule
 
         Parameters
         ----------
         sidechain : Boolean
-            Wheter to compute all torsional angles including the chi angles or
+            whether to compute all torsional angles including the chi angles or
             only backbone ones. The default (True) is to include the sidechain.
-
+        n_digits : int
+            Number of decimal digits used to round the torsional values
+            (default 2 digits).
+    
         Returns
         ----------
-        DataFrame with the type of torsional angles as colums: # ToDo
+        DataFrame with the type of torsional angles as columns:
         
         """
+        all_tors = []
         for i in range(len(self)):
             tors = []
-            tors.append(self.get_phi(i))
-            tors.append(self.get_psi(i))
+            tors.append(round(self.get_phi(i), n_digits))
+            tors.append(round(self.get_psi(i), n_digits))
             if sidechain:
-                for j in range(2):
-                    tors.append(self.get_chi(i, j))
-                print(('{:8.2f}' * 4).format(*tors))
-            else:
-                print(('{:8.2f}' * 2).format(*tors))
+                for j in range(5):
+                    tors.append(round(self.get_chi(i, j), n_digits))
+            all_tors.append(tors)
+        if sidechain:
+            labels = ['phi', 'psi', 'chi1', 'chi2', 'chi3', 'chi4', 'chi5']
+        else:
+            labels = ['phi', 'psi']
+        df = pd.DataFrame.from_records(all_tors, columns=labels)
+        return df
 
 
     def set_phi(self, resnum, theta):
