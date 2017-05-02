@@ -7,7 +7,7 @@ from .ff import compute_neighbors, LJ
 
 class TestTube():
     """
-    This is a "container" class instanciated only once (Singleton)
+    this is a "container" class instantiated only once (Singleton)
     """
     _instance = None
     def __new__(cls, solvent=None, temperature=298, force_field='simple_lj',
@@ -49,17 +49,22 @@ class TestTube():
             molecules.remove(name)
 
 
-class Protein:
-    '''write me'''
-    def __init__(self, sequence):
-        '''Initialize a new protein from a sequence of amino acids'''
-        self.sequence = sequence
-        self.coords, self._names, self._elements, self._offsets, self._exclusions = _prot_builder(sequence)
-        # add instance of Protein to TestTube automatically
+class Biomolecule():
+    """Base class for biomolecules"""
+    def __init__(self):
+        self.sequence
+        self.coords 
+        self._names
+        self._elements
+        self._offsets
+        self._exclusions
 
     def __len__(self):
         return len(self.sequence)
-        
+
+    def get_torsionals(self):
+        raise NotImplementedError()
+
     def at_coords(self, resnum, at_name=None):
         """
         Returns the coordinate of an specified residue and atom (optionally)
@@ -84,7 +89,45 @@ class Protein:
         else:
             at_idx = self._names[offset_0:offset_1].index(at_name)
             return self.coords[offset_0 + at_idx]
+
+    def dump_pdb(self, filename, b_factor=None):
+        """
+        Write a molecule object to a pdb file
+
+        Parameters
+        ----------
+        filename : string
+            name of the file without the pdb extension
+        b_factor : list optional
+            list of values to fill the b-factor column. one value per atom
+        """
+        coords = self.coords
+        names = self._names
+        elements = self._elements
+        sequence = self.sequence
         
+        if b_factor is None:
+            b_factor = [1.] * len(coords)
+
+        rep_seq_nam = []
+        rep_seq = []
+        for idx, aa in enumerate(sequence):
+            lenght = aa_templates[aa].offset
+            seq_nam = aa * lenght
+            res = [str(idx + 1)] * lenght
+            rep_seq_nam.extend(seq_nam)
+            rep_seq.extend(res)
+
+        fd = open('{}.pdb'.format(filename), 'w')
+        for i in range(len(coords)):
+            serial = str(i + 1)
+            name = names[i]
+            resname = one_to_three[rep_seq_nam[i]]
+            resseq = rep_seq[i]
+            line = "ATOM {:>6s}{:>4s} {:>4s} {:>5s}    {:8.3f}{:8.3f}{:8.3f}  1.00 {:5.2f}           {:2s}  \n".format(serial, name, resname, resseq, *coords[i], b_factor[i], elements[i])
+            fd.write(line)
+        fd.close()
+
     def energy(self, cut_off=6):
         """
         Write ME!
@@ -93,6 +136,16 @@ class Protein:
         neighbors = compute_neighbors(coords, self._exclusions, cut_off)
         energy = LJ(neighbors, coords, self._elements)
         return energy
+
+
+class Protein(Biomolecule):
+    """Protein object"""
+    def __init__(self, sequence, mol_name='lala'):
+        """Initialize a new protein from a sequence of amino acids"""
+        self.sequence = sequence
+        self.coords, self._names, self._elements, self._offsets, self._exclusions = _prot_builder(sequence)
+        self.mol_name = mol_name
+        # add instance of Protein to TestTube automatically
 
     def get_phi(self, resnum):
         """
@@ -225,44 +278,6 @@ class Protein:
             resname = self.sequence[resnum]
             idx_to_fix = (3, aa_templates[resname].offset - 1)
             set_torsional(xyz, i, j, theta_rad, idx_to_fix)
-
-    def dump_pdb(self, filename, b_factor=None):
-        """
-        Write a protein to a pdb file
-
-        Parameters
-        ----------
-        filename : string
-            name of the file without the pdb extension
-        b_factor : list optional
-            list of values to fill the b-factor column. one value per atom
-        """
-        coords = self.coords
-        names = self._names
-        elements = self._elements
-        sequence = self.sequence
-        
-        if b_factor is None:
-            b_factor = [1.] * len(coords)
-
-        rep_seq_nam = []
-        rep_seq = []
-        for idx, aa in enumerate(sequence):
-            lenght = aa_templates[aa].offset
-            seq_nam = aa * lenght
-            res = [str(idx + 1)] * lenght
-            rep_seq_nam.extend(seq_nam)
-            rep_seq.extend(res)
-
-        fd = open('{}.pdb'.format(filename), 'w')
-        for i in range(len(coords)):
-            serial = str(i + 1)
-            name = names[i]
-            resname = one_to_three[rep_seq_nam[i]]
-            resseq = rep_seq[i]
-            line = "ATOM {:>6s}{:>4s} {:>4s} {:>5s}    {:8.3f}{:8.3f}{:8.3f}  1.00 {:5.2f}           {:2s}  \n".format(serial, name, resname, resseq, *coords[i], b_factor[i], elements[i])
-            fd.write(line)
-        fd.close()
 
 
 def _prot_builder(sequence):
