@@ -123,9 +123,11 @@ class Biomolecule():
         for i in range(len(coords)):
             serial = str(i + 1)
             name = names[i]
+            if len(name) < 4:
+                name = ' ' + name
             resname = one_to_three[rep_seq_nam[i]]
             resseq = rep_seq[i]
-            line = "ATOM {:>6s}{:>4s} {:>4s} {:>5s}    {:8.3f}{:8.3f}{:8.3f}  1.00 {:5.2f}           {:2s}  \n".format(serial, name, resname, resseq, *coords[i], b_factor[i], elements[i])
+            line = "ATOM {:>6s} {:<4s} {:>3s} {:>5s}    {:8.3f}{:8.3f}{:8.3f}  1.00 {:5.2f}           {:2s}  \n".format(serial, name, resname, resseq, *coords[i], b_factor[i], elements[i])
             fd.write(line)
         fd.close()
 
@@ -141,12 +143,35 @@ class Biomolecule():
 
 class Protein(Biomolecule):
     """Protein object"""
-    def __init__(self, sequence, mol_name='lala'):
-        """initialize a new protein from a sequence of amino acids"""
+    def __init__(self, sequence, ss='strand'):
+        """initialize a new protein from a sequence of amino acids
+
+        Parameters
+        ----------
+        sequence : str
+            protein sequence using one letter code.
+            example 'GAD'
+        ss : str
+            secondary structure to initialize the protein. Two options allowed
+            'strand' (-135, 135)
+            'helix' (-60, -40)
+        
+        Returns
+        ----------
+        Protein object
+        """
         self.sequence = sequence
         self.coords, self._names, self._elements, self._offsets, self._exclusions = _prot_builder(sequence)
-        self.mol_name = mol_name
         # add instance of Protein to TestTube automatically
+        if ss == 'strand':
+            for i in range(len(self)):
+                self.set_phi(i, -135)
+                self.set_psi(i, 135)
+        elif ss == 'helix':
+            for i in range(len(self)):
+                self.set_phi(i, -60)
+                self.set_psi(i, -40)
+
 
     def get_phi(self, resnum):
         """
@@ -262,9 +287,10 @@ class Protein(Biomolecule):
             # the hydrogen attached to N(i) was unnecessarily rotated, so we
             # need to fix it
             resname = self.sequence[resnum]
-            H = aa_templates[resname].atom_names.index('H')
-            idx_to_fix = (H, H+1)
-            set_torsional(xyz, i, j, theta_rad, idx_to_fix)
+            if resname != 'P':  ## FIXME phi is not changed for P, this is not that bad, but at least we should warn the user
+                H = aa_templates[resname].atom_names.index('H')
+                idx_to_fix = (H, H+1)
+                set_torsional(xyz, i, j, theta_rad, idx_to_fix)
 
     def set_psi(self, resnum, theta):
         """
@@ -329,7 +355,10 @@ def _prot_builder(sequence):
         axis2 = axis2 / mod(axis2) + connectionpoint
         d3 = tmp_coords[1]
         d4 = tmp_coords[2]
-        angle2 = constants.pi + get_torsional(v3, connectionpoint, d3, d4) # si res_next Pro sumar 90 grados
+        if aa == 'P':
+            angle2 = constants.pi + get_torsional(v3, connectionpoint, d3, d4) - 1.5707963267948966
+        else:
+            angle2 = constants.pi + get_torsional(v3, connectionpoint, d3, d4)
         center2 = connectionpoint
         ba =  axis2 - center2
         tmp_coords = tmp_coords - center2
@@ -355,7 +384,7 @@ def _prot_builder(sequence):
         if element in ['1', '2', '3']:
             element = i[1]
         elements.append(element)
-    
+
     return pept_coords, names, elements, offsets, exclusions
     
     
