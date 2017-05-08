@@ -15,6 +15,8 @@ sel = 'all'
 aa = ['A', 'R', 'N', 'D', 'C', 'E', 'Q', 'G', 'H', 'I', 'L', 'K', 'M',
       'F', 'P', 'S', 'T', 'W', 'Y', 'V']
 
+#aa = ['A']
+
 for res_name in aa:
     ## Get coordinates and offset
     cmd.fab(res_name)
@@ -46,16 +48,29 @@ for res_name in aa:
     bonds = list(set([tuple(sorted(i)) for i in stored.bonds]))
     bonds.sort()
     
+    ## get bb and sc
+    stored.bb = []
+    stored.sc = []
+    bb = '(nbr (name n+ca+c+o) ) and hydro or (name n+ca+c+o)'
+    sc = 'not ({})'.format(bb)
+    cmd.iterate(bb, 'stored.bb.append(ID)')
+    cmd.iterate(sc, 'stored.sc.append(ID)')
+    
     ## small check before returning the results
     if len(atom_names) == offset:
     
+        if res_name == 'G':
+            atom_names = ['N', 'CA', 'C', 'O', 'H', 'HA2', 'HA3']
         res = """{}_info = AA_info(coords=np.{},
              atom_names = {},
+             bb = {},
+             sc = {},
              bonds = {},
-             offset = {})\n""".format(res_name, repr(xyz), atom_names, bonds, offset)
-         
+             offset = {})\n""".format(res_name, repr(xyz), atom_names, stored.bb, stored.sc, bonds, offset)
         print(res)
-        print('GLY needs manual tweaking with the hydrogen names\nthis script has not been fully tested!!!')
     else:
         print('Something funny is going on here!')
     cmd.delete('all')
+
+print('GLY hydronge atom names were manually tweaked\nthis script has not been fully tested!!!')
+

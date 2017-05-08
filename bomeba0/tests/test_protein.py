@@ -69,5 +69,5 @@ def test_set_get_torsionals():
 def test_at_coords():
     assert_almost_equal(prot.at_coords(1), prot.coords[7:])
     assert_almost_equal(prot.at_coords(1, 'N'), prot.coords[7])
-    
-    
+    assert_almost_equal(prot.at_coords(1, 'bb'), prot.coords[7:])
+    assert len(prot.at_coords(1, 'sc')) == 0 
