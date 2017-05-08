@@ -6,6 +6,7 @@ from .geometry import rotation_matrix_3d, set_torsional
 from .constants import constants
 from .ff import compute_neighbors, LJ
 
+
 class TestTube():
     """
     this is a "container" class instantiated only once (Singleton)
@@ -66,7 +67,8 @@ class Biomolecule():
     def get_torsionals(self):
         raise NotImplementedError()
 
-    def at_coords(self, resnum, at_name=None):
+
+    def at_coords(self, resnum, selection=None):
         """
         Returns the coordinate of an specified residue and atom (optionally)
 
@@ -74,22 +76,34 @@ class Biomolecule():
         ----------
         resnum : int
             residue number from which to obtain the coordinates
-        at_name : string or None
-            atom name from which to obtain the coordinates. If none is provided
-            it will return the coordinates of the whole residue (default).
+        selection : string or None
+            selection from which to obtain the coordinates. If none is provided
+            it will return the coordinates of the whole residue (default). Use
+            'sc' for the sidechain, 'bb' for the backbone or a valid atom name.
 
         Returns
         ----------
         coords: array
-            Cartesian coordinates of a given residue or from an atom in the
+            Cartesian coordinates of a given residue or a subset of atoms in a
             given residue.
         """
-        offset_0, offset_1 = self._offsets[resnum:resnum+2]
-        if at_name is None:
-            return self.coords[offset_0 : offset_1]
+        offsets = self._offsets
+        offset_0, offset_1 = offsets[resnum], offsets[resnum + 1]
+        rescoords = self.coords[offset_0 : offset_1]
+        
+        if selection is None:
+            return rescoords
         else:
-            at_idx = self._names[offset_0:offset_1].index(at_name)
-            return self.coords[offset_0 + at_idx]
+            resname = self.sequence[resnum]
+            resinfo = aa_templates[resname]
+            if selection == 'sc':
+                idx = resinfo.sc
+            elif selection == 'bb':    
+                idx = resinfo.bb
+            else:
+                idx = resinfo.atom_names.index(selection)
+            return rescoords[idx]
+
 
     def dump_pdb(self, filename, b_factor=None):
         """
@@ -323,12 +337,12 @@ def _prot_builder(sequence):
     """
     names = []
     bonds_mol = []
-    pept_coords, pept_at, bonds, offset = aa_templates[sequence[0]]
+    pept_coords, pept_at, bonds, _, _, offset = aa_templates[sequence[0]]
     names.extend(pept_at)
     bonds_mol.extend(bonds)
     offsets = [0, offset]
     for idx, aa in enumerate(sequence[1:]):
-        tmp_coords, tmp_at, bonds, offset = aa_templates[aa]
+        tmp_coords, tmp_at, bonds, _, _, offset = aa_templates[aa]
         
         v3 = pept_coords[2 + offsets[idx]]  # C
         v2 = pept_coords[1 + offsets[idx]]  # CA
