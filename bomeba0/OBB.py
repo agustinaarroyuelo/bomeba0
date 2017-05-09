@@ -1,5 +1,5 @@
 """
-sdfkjhh<ssdjfhsjkdhf
+Write me! 
 """
 from .residues import aa_templates
 
