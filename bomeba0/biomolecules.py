@@ -122,7 +122,7 @@ class Biomolecule():
         sequence = self.sequence
         
         if b_factor is None:
-            b_factor = [1.] * len(coords)
+            b_factor = [0.] * len(coords)
 
         rep_seq_nam = []
         rep_seq = []
@@ -141,7 +141,7 @@ class Biomolecule():
                 name = ' ' + name
             resname = one_to_three[rep_seq_nam[i]]
             resseq = rep_seq[i]
-            line = "ATOM {:>6s} {:<4s} {:>3s} {:>5s}    {:8.3f}{:8.3f}{:8.3f}  1.00 {:5.2f}           {:2s}  \n".format(serial, name, resname, resseq, *coords[i], b_factor[i], elements[i])
+            line = "ATOM {:>6s} {:<4s} {:>3s} A{:>4s}    {:8.3f}{:8.3f}{:8.3f}  1.00 {:5.2f}           {:2s} \n".format(serial, name, resname, resseq, *coords[i], b_factor[i], elements[i])
             fd.write(line)
         fd.close()
 
