@@ -1,5 +1,6 @@
 import numpy as np
 from numpy.testing import assert_almost_equal
+import filecmp
 from ..biomolecules import Protein
 
 seq_reference = 'GG'
@@ -70,4 +71,11 @@ def test_at_coords():
     assert_almost_equal(prot.at_coords(1), prot.coords[7:])
     assert_almost_equal(prot.at_coords(1, 'N'), prot.coords[7])
     assert_almost_equal(prot.at_coords(1, 'bb'), prot.coords[7:])
-    assert len(prot.at_coords(1, 'sc')) == 0 
+    assert len(prot.at_coords(1, 'sc')) == 0
+    
+def test_protein():
+    prot.dump_pdb('test_1')
+    prot2 = Protein(pdb='test_1.pdb')
+    prot2.dump_pdb('test_2')
+    assert filecmp.cmp('test_1.pdb', 'test_2.pdb')
+    
