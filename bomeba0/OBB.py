@@ -30,12 +30,14 @@ def _little_boxes(prot):
 
             idx_ca = [_ + offset_1 for _ in resinfo.sc]
             idx_ca += [resinfo.atom_names.index('CA') + offset_1]
-            idx_ca += [resinfo.atom_names.index('HA') + offset_1] 
+            if resname != 'G': 
+                idx_ca += [resinfo.atom_names.index('HA') + offset_1] 
     
             idx_p = [resinfo.atom_names.index('C') + offset_0]
             idx_p += [resinfo.atom_names.index('O') + offset_0]
-            idx_p += [resinfo.atom_names.index('N') + offset_1] 
-            idx_p += [resinfo.atom_names.index('H') + offset_1]
+            idx_p += [resinfo.atom_names.index('N') + offset_1]
+            if resname != 'P': 
+                idx_p += [resinfo.atom_names.index('H') + offset_1]
 
             if  0 < resnum < lenght: 
                 boxes.append(idx_p)
