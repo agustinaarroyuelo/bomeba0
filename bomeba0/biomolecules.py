@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from .residues import aa_templates, one_to_three
+from .residues import aa_templates, one_to_three, three_to_one
 from .utils import mod, perp_vector, get_angle, get_torsional
 from .geometry import rotation_matrix_3d, set_torsional
 from .constants import constants
@@ -145,6 +145,7 @@ class Biomolecule():
             fd.write(line)
         fd.close()
 
+
     def energy(self, cut_off=6):
         """
         Write ME!
@@ -157,34 +158,63 @@ class Biomolecule():
 
 class Protein(Biomolecule):
     """Protein object"""
-    def __init__(self, sequence, ss='strand'):
+    def __init__(self, sequence=None, pdb=None, ss='strand'):
         """initialize a new protein from a sequence of amino acids
 
         Parameters
         ----------
         sequence : str
-            protein sequence using one letter code.
+            protein sequence using one letter code. Accepts lower and uppercase
+            sequences
             example 'GAD'
+        pdf : file
+            Protein data bank file.
+            For the moment this will only work with "nice" files. Like:
+            * files generated with bomeba
+            * x-ray files from the PDB
+            * Files without missing residues/atoms
+            For NMR files is not able to recognize the different models.
         ss : str
             secondary structure to initialize the protein. Two options allowed
             'strand' (-135, 135)
             'helix' (-60, -40)
+            This argument is only valid when a sequence is passed and not when
+            the structure is generated from a pdb file
         
         Returns
         ----------
         Protein object
         """
-        self.sequence = sequence
-        self.coords, self._names, self._elements, self._offsets, self._exclusions = _prot_builder(sequence)
-        # add instance of Protein to TestTube automatically
-        if ss == 'strand':
-            for i in range(len(self)):
-                self.set_phi(i, -135)
-                self.set_psi(i, 135)
-        elif ss == 'helix':
-            for i in range(len(self)):
-                self.set_phi(i, -60)
-                self.set_psi(i, -40)
+        if sequence is not None:
+            self.sequence = sequence.upper()
+            (self.coords,
+            self._names,
+            self._elements,
+            self.occupancies,
+            self.bfactors,
+            self._offsets,
+            self._exclusions) = _prot_builder_from_seq(self.sequence)
+
+            if ss == 'strand':
+                for i in range(len(self)):
+                    self.set_phi(i, -135)
+                    self.set_psi(i, 135)
+            elif ss == 'helix':
+                for i in range(len(self)):
+                    self.set_phi(i, -60)
+                    self.set_psi(i, -40)
+
+        elif pdb is not None:
+            (self.sequence,
+            self.coords,
+            self._names,
+            self._elements,
+            self.occupancies,
+            self.bfactors,
+            self._offsets,
+            self._exclusions) = _prot_builder_from_pdb(pdb)
+        else:
+            "Please provide a sequence or a pdb file"
 
 
     def get_phi(self, resnum):
@@ -306,6 +336,7 @@ class Protein(Biomolecule):
                 idx_to_fix = (H, H+1)
                 set_torsional(xyz, i, j, theta_rad, idx_to_fix)
 
+
     def set_psi(self, resnum, theta):
         """
         set the psi torsional angle to the value theta
@@ -330,7 +361,7 @@ class Protein(Biomolecule):
             set_torsional(xyz, i, j, theta_rad, idx_to_fix)
 
 
-def _prot_builder(sequence):
+def _prot_builder_from_seq(sequence):
     """
     Build a protein from a template.
     Adapted from fragbuilder
@@ -386,7 +417,8 @@ def _prot_builder(sequence):
         # create a list of bonds from the template-bonds by adding the offset
         prev_offset = offsets[-3]
         last_offset = offsets[-2]
-        bonds_mol.extend([(i + last_offset, j + last_offset) for i, j in bonds] + [(2 + prev_offset, last_offset)])
+        bonds_mol.extend([(i + last_offset, j + last_offset)
+                         for i, j in bonds] + [(2 + prev_offset, last_offset)])
 
     offsets.append(offsets[-1] + offset)
     exclusions = _exclusiones_1_3(bonds_mol)
@@ -398,10 +430,92 @@ def _prot_builder(sequence):
         if element in ['1', '2', '3']:
             element = i[1]
         elements.append(element)
+        
+    occupancies = [1.] * len(names)
+    bfactors = [0.] * len(names)
 
-    return pept_coords, names, elements, offsets, exclusions
+    return (pept_coords,
+            names,
+            elements,
+            occupancies,
+            bfactors,
+            offsets,
+            exclusions)
+ 
+def _prot_builder_from_pdb(pdb):
+    """
+    Auxiliary function to build a protein object from a pdb file
+    """
+    (names,
+     sequence,
+     pept_coords,
+     occupancies,
+     bfactors,
+     elements) = _pdb_parser(pdb)
+
+    bonds_mol = []
+    _, pept_at, bonds, _, _, offset = aa_templates[sequence[0]]
+    bonds_mol.extend(bonds)
+    offsets = [0, offset]
     
+    for idx, aa in enumerate(sequence[1:]):
+        offsets.append(offsets[idx+1] + offset)
+        prev_offset = offsets[-3]
+        last_offset = offsets[-2]
+        bonds_mol.extend([(i + last_offset, j + last_offset) 
+                         for i, j in bonds] + [(2 + prev_offset, last_offset)])
+    offsets.append(offsets[-1] + offset)
+    exclusions = _exclusiones_1_3(bonds_mol)
     
+    return (sequence,
+            pept_coords,
+            names,
+            elements,
+            occupancies,
+            bfactors,
+            offsets,
+            exclusions)   
+
+
+def _pdb_parser(filename):
+    serial = []
+    names = []
+    #altloc = []
+    resnames = []
+    chainid = []
+    resseq = []
+    #icode = []
+    xyz = []
+    occupancies = []
+    bfactors = []
+    elements = []
+    #charge = []
+    for line in open(filename).readlines():
+        if line[0:5] == 'ATOM ':
+            serial.append(int(line[6:11]))
+            names.append(line[12:16].strip())
+            #altloc.append(line[16])
+            resnames.append(line[17:20])
+            chainid.append(line[21])
+            resseq.append(int(line[22:26]))
+            #icode.append(line[26])
+            xyz.append([float(line[30:38]),
+                        float(line[38:46]),
+                        float(line[46:54])])
+            occupancies.append(float(line[54:60]))
+            bfactors.append(float(line[60:66]))
+            elements.append(line[76:78].strip())
+            #charge.append(line[78:80])
+
+    unique_res = set([resseq.index(i) for i in resseq])
+    sequence = []
+    for i in unique_res:
+        aa = three_to_one[resnames[i]]
+        sequence.append(aa)
+   
+    return names, sequence, np.array(xyz), occupancies, bfactors, elements
+
+
 def _exclusiones_1_3(bonds_mol):
     # based on the information inside bonds_mol determine the 1-3 exclusions
     # ToDo: write a not-naive version of this
