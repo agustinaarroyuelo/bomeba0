@@ -12,6 +12,7 @@ def compute_neighbors(coords, exclusions, cut_off):
     all_pairs = tree_c.query_pairs(cut_off)
     return all_pairs - exclusions
 
+
 def LJ(neighbors, xyz, elements, mode='A'):
     """
     Lennard Jones energy term
@@ -58,7 +59,7 @@ def LJ(neighbors, xyz, elements, mode='A'):
     return E_vdw
     
 
-# convenient function just to speed up computation by 2x
+# convenient function just to speed up computation by 3x
 @jit
 def _LJ(xyz, i, j, sigma_ij, epsilon_ij):
 
