@@ -158,7 +158,7 @@ class Biomolecule():
 
 class Protein(Biomolecule):
     """Protein object"""
-    def __init__(self, sequence=None, pdb=None, ss='strand'):
+    def __init__(self, sequence=None, pdb=None, ss='strand', tor_list=None):
         """initialize a new protein from a sequence of amino acids
 
         Parameters
@@ -195,14 +195,21 @@ class Protein(Biomolecule):
             self._offsets,
             self._exclusions) = _prot_builder_from_seq(self.sequence)
 
-            if ss == 'strand':
-                for i in range(len(self)):
-                    self.set_phi(i, -135)
-                    self.set_psi(i, 135)
-            elif ss == 'helix':
-                for i in range(len(self)):
-                    self.set_phi(i, -60)
-                    self.set_psi(i, -40)
+            if tor_list is not None:
+                for idx, val in enumerate(tor_list):
+                    i = float(val[0])
+                    j = float(val[1])
+                    self.set_phi(idx, i)
+                    self.set_psi(idx, j)
+            else:
+                if ss == 'strand':
+                    for i in range(len(self)):
+                        self.set_phi(i, -135)
+                        self.set_psi(i, 135)
+                elif ss == 'helix':
+                    for i in range(len(self)):
+                        self.set_phi(i, -60)
+                        self.set_psi(i, -40)
 
         elif pdb is not None:
             (self.sequence,
@@ -291,22 +298,22 @@ class Protein(Biomolecule):
     
         Returns
         ----------
-        DataFrame with the type of torsional angles as columns:
+        DataFrame with the protein sequence and torsional angles.
         
         """
         all_tors = []
-        for i in range(len(self)):
+        for i, aa in enumerate(self.sequence):
             tors = []
             tors.append(round(self.get_phi(i), n_digits))
             tors.append(round(self.get_psi(i), n_digits))
             if sidechain:
                 for j in range(5):
                     tors.append(round(self.get_chi(i, j), n_digits))
-            all_tors.append(tors)
+            all_tors.append([aa] + tors)
         if sidechain:
-            labels = ['phi', 'psi', 'chi1', 'chi2', 'chi3', 'chi4', 'chi5']
+            labels = ['aa', 'phi', 'psi', 'chi1', 'chi2', 'chi3', 'chi4', 'chi5']
         else:
-            labels = ['phi', 'psi']
+            labels = ['aa', 'phi', 'psi']
         df = pd.DataFrame.from_records(all_tors, columns=labels)
         return df
 
@@ -459,6 +466,7 @@ def _prot_builder_from_pdb(pdb):
     offsets = [0, offset]
     
     for idx, aa in enumerate(sequence[1:]):
+        offset = aa_templates[aa][-1]
         offsets.append(offsets[idx+1] + offset)
         prev_offset = offsets[-3]
         last_offset = offsets[-2]
@@ -478,6 +486,11 @@ def _prot_builder_from_pdb(pdb):
 
 
 def _pdb_parser(filename):
+    """
+    This function is very fragile now. It's only works with files saved using
+    bomeba or files that has hydrogen a single model and follows the PDB rules
+    it will not work for example with files from PyMOL.
+    """
     serial = []
     names = []
     #altloc = []
@@ -492,26 +505,31 @@ def _pdb_parser(filename):
     #charge = []
     for line in open(filename).readlines():
         if line[0:5] == 'ATOM ':
-            serial.append(int(line[6:11]))
-            names.append(line[12:16].strip())
-            #altloc.append(line[16])
-            resnames.append(line[17:20])
-            chainid.append(line[21])
-            resseq.append(int(line[22:26]))
-            #icode.append(line[26])
-            xyz.append([float(line[30:38]),
-                        float(line[38:46]),
-                        float(line[46:54])])
-            occupancies.append(float(line[54:60]))
-            bfactors.append(float(line[60:66]))
-            elements.append(line[76:78].strip())
-            #charge.append(line[78:80])
+            name = line[12:16].strip()
+            if name == 'H1':
+                name = 'H'
+            if name not in ['H2', 'H3', 'OXT']:
+                serial.append(int(line[6:11]))
+                names.append(name)
+                #altloc.append(line[16])
+                resnames.append(line[17:20])
+                chainid.append(line[21])
+                resseq.append(int(line[22:26]))
+                #icode.append(line[26])
+                xyz.append([float(line[30:38]),
+                            float(line[38:46]),
+                            float(line[46:54])])
+                occupancies.append(float(line[54:60]))
+                bfactors.append(float(line[60:66]))
+                elements.append(line[76:78].strip())
+                #charge.append(line[78:80])
 
-    unique_res = set([resseq.index(i) for i in resseq])
-    sequence = []
+    unique_res = sorted((set([resseq.index(i) for i in resseq])))
+    sequence = ''
+
     for i in unique_res:
         aa = three_to_one[resnames[i]]
-        sequence.append(aa)
+        sequence += aa
    
     return names, sequence, np.array(xyz), occupancies, bfactors, elements
 
