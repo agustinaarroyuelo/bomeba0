@@ -146,12 +146,30 @@ class Biomolecule():
         fd.close()
 
 
-    def energy(self, cut_off=6):
+    def energy(self, cut_off=6., neighbors=None):
         """
-        Write ME!
+        Compute the internal energy of a molecule using a pair-wise 
+        Lennard-Jones potential.
+
+        Parameters
+        ----------
+        cut_off : float
+            Only pair of atoms closer than cut_off will be used to compute the
+            energy. Default 6. Only valid when neighbors is None.
+        neighbors: set of tuples
+            Pairs of atoms used to compute the energy. If None (default) the
+            list of neighbors will be computed using a KD-tree (from scipy),
+            see ff.compute_neighbors for details.
+
+        Returns
+        ----------
+        energy : float:
+            molecular energy in Kcal/mol
+
         """
         coords = self.coords
-        neighbors = compute_neighbors(coords, self._exclusions, cut_off)
+        if neighbors is None:
+            neighbors = compute_neighbors(coords, self._exclusions, cut_off)
         energy = LJ(neighbors, coords, self._elements)
         return energy
 
