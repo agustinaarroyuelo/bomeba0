@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
-from .residues import aa_templates, one_to_three, three_to_one
+from .residues import templates_aa, one_to_three_aa, three_to_one_aa
+from .glycans import templates_gl, one_to_three_gl, three_to_one_gl
 from .utils import mod, perp_vector, get_angle, get_torsional
 from .geometry import rotation_matrix_3d, set_torsional
 from .constants import constants
@@ -68,43 +69,6 @@ class Biomolecule():
         raise NotImplementedError()
 
 
-    def at_coords(self, resnum, selection=None):
-        """
-        Returns the coordinate of an specified residue and atom (optionally)
-
-        Parameters
-        ----------
-        resnum : int
-            residue number from which to obtain the coordinates
-        selection : string or None
-            selection from which to obtain the coordinates. If none is provided
-            it will return the coordinates of the whole residue (default). Use
-            'sc' for the sidechain, 'bb' for the backbone or a valid atom name.
-
-        Returns
-        ----------
-        coords: array
-            Cartesian coordinates of a given residue or a subset of atoms in a
-            given residue.
-        """
-        offsets = self._offsets
-        offset_0, offset_1 = offsets[resnum], offsets[resnum + 1]
-        rescoords = self.coords[offset_0 : offset_1]
-        
-        if selection is None:
-            return rescoords
-        else:
-            resname = self.sequence[resnum]
-            resinfo = aa_templates[resname]
-            if selection == 'sc':
-                idx = resinfo.sc
-            elif selection == 'bb':    
-                idx = resinfo.bb
-            else:
-                idx = resinfo.atom_names.index(selection)
-            return rescoords[idx]
-
-
     def dump_pdb(self, filename, b_factor=None):
         """
         Write a molecule object to a pdb file
@@ -116,6 +80,13 @@ class Biomolecule():
         b_factor : list optional
             list of values to fill the b-factor column. one value per atom
         """
+        if isinstance(self, Protein):
+            one_to_three = one_to_three_aa
+            templates = templates_aa
+        elif isinstance(self, Glycan):
+            one_to_three = one_to_three_gl
+            templates = templates_gl
+        
         coords = self.coords
         names = self._names
         elements = self._elements
@@ -127,7 +98,7 @@ class Biomolecule():
         rep_seq_nam = []
         rep_seq = []
         for idx, aa in enumerate(sequence):
-            lenght = aa_templates[aa].offset
+            lenght = templates[aa].offset
             seq_nam = aa * lenght
             res = [str(idx + 1)] * lenght
             rep_seq_nam.extend(seq_nam)
@@ -237,9 +208,46 @@ class Protein(Biomolecule):
             self.occupancies,
             self.bfactors,
             self._offsets,
-            self._exclusions) = _prot_builder_from_pdb(pdb)
+            self._exclusions) = _builder_from_pdb(pdb, 'protein')
         else:
             "Please provide a sequence or a pdb file"
+
+
+    def at_coords(self, resnum, selection=None):
+        """
+        Returns the coordinate of an specified residue and atom (optionally)
+
+        Parameters
+        ----------
+        resnum : int
+            residue number from which to obtain the coordinates
+        selection : string or None
+            selection from which to obtain the coordinates. If none is provided
+            it will return the coordinates of the whole residue (default). Use
+            'sc' for the sidechain, 'bb' for the backbone or a valid atom name.
+
+        Returns
+        ----------
+        coords: array
+            Cartesian coordinates of a given residue or a subset of atoms in a
+            given residue.
+        """
+        offsets = self._offsets
+        offset_0, offset_1 = offsets[resnum], offsets[resnum + 1]
+        rescoords = self.coords[offset_0 : offset_1]
+        
+        if selection is None:
+            return rescoords
+        else:
+            resname = self.sequence[resnum]
+            resinfo = templates_aa[resname]
+            if selection == 'sc':
+                idx = resinfo.sc
+            elif selection == 'bb':    
+                idx = resinfo.bb
+            else:
+                idx = resinfo.atom_names.index(selection)
+            return rescoords[idx]
 
 
     def get_phi(self, resnum):
@@ -357,7 +365,7 @@ class Protein(Biomolecule):
             # need to fix it
             resname = self.sequence[resnum]
             if resname != 'P':  ## FIXME phi is not changed for P, this is not that bad, but at least we should warn the user
-                H = aa_templates[resname].atom_names.index('H')
+                H = templates_aa[resname].atom_names.index('H')
                 idx_to_fix = (H, H+1)
                 set_torsional(xyz, i, j, theta_rad, idx_to_fix)
 
@@ -382,8 +390,113 @@ class Protein(Biomolecule):
             # We have made a rotation starting from the next residue and we
             # left C and O atoms unrotated, now we fix this
             resname = self.sequence[resnum]
-            idx_to_fix = (3, aa_templates[resname].offset - 1)
+            idx_to_fix = (3, templates_aa[resname].offset - 1)
             set_torsional(xyz, i, j, theta_rad, idx_to_fix)
+
+
+class Glycan(Biomolecule):
+    """Glycan object"""
+    def __init__(self, pdb=None):
+        """initialize a new Glycan from a PDB
+
+        Parameters
+        ----------
+        pdf : file
+            Protein data bank file.
+            For the moment this will only work with "nice" files:        
+        Returns
+        ----------
+        Glycan object
+        """
+        if pdb is not None:
+            (self.sequence,
+            self.coords,
+            self._names,
+            self._elements,
+            self.occupancies,
+            self.bfactors,
+            self._offsets,
+            self._exclusions) = _builder_from_pdb(pdb, 'glycan')
+        else:
+            "Please provide a sequence or a pdb file"
+
+
+    def at_coords(self, resnum, selection=None):
+        """
+        Returns the coordinate of an specified residue and atom (optionally)
+
+        Parameters
+        ----------
+        resnum : int
+            residue number from which to obtain the coordinates
+        selection : string or None
+            selection from which to obtain the coordinates. If none is provided
+            it will return the coordinates of the whole residue (default). Use
+            a valid atom name.
+
+        Returns
+        ----------
+        coords: array
+            Cartesian coordinates of a given residue or a subset of atoms in a
+            given residue.
+        """
+        offsets = self._offsets
+        offset_0, offset_1 = offsets[resnum], offsets[resnum + 1]
+        rescoords = self.coords[offset_0 : offset_1]
+        
+        if selection is None:
+            return rescoords
+        else:
+            resname = self.sequence[resnum]
+            resinfo = templates_gl[resname]
+            idx = resinfo.atom_names.index(selection)
+            return rescoords[idx]
+
+
+    def get_phi(self, resnum):
+        """
+        Compute the dihedral angle phi (OR-C1-O'x-C'x)
+
+        Parameters
+        ----------
+        resnum : int
+            residue number from which to compute torsional
+        """
+        if resnum + 1 < len(self):
+            coords = self.coords
+            this = self._offsets[resnum]
+            next = self._offsets[resnum + 1]
+
+            a = coords[this + 11]
+            b = coords[this]
+            c = coords[next + 4] # true only for bond 1-3
+            d = coords[next + 3] # true only for bond 1-3
+            return get_torsional(a, b, c, d) * constants.radians_to_degrees
+        else:
+            return np.nan
+
+    def get_psi(self, resnum):
+        """
+        Compute the dihedral angle psi (C1-O'x-C'x-C'x-1)
+
+        Parameters
+        ----------
+        resnum : int
+            residue number from which to compute torsional
+        """
+        # N(i),Ca(i),C(i),N(i+1)
+        if resnum + 1 < len(self):
+            coords = self.coords
+            this = self._offsets[resnum]
+            next = self._offsets[resnum + 1]
+
+            a = coords[this]
+            b = coords[next + 4] # true only for bond 1-3
+            c = coords[next + 3] # true only for bond 1-3
+            d = coords[next + 1] # true only for bond 1-3
+            return get_torsional(a, b, c, d) * constants.radians_to_degrees
+        else:
+            return np.nan
 
 
 def _prot_builder_from_seq(sequence):
@@ -393,12 +506,12 @@ def _prot_builder_from_seq(sequence):
     """
     names = []
     bonds_mol = []
-    pept_coords, pept_at, bonds, _, _, offset = aa_templates[sequence[0]]
+    pept_coords, pept_at, bonds, _, _, offset = templates_aa[sequence[0]]
     names.extend(pept_at)
     bonds_mol.extend(bonds)
     offsets = [0, offset]
     for idx, aa in enumerate(sequence[1:]):
-        tmp_coords, tmp_at, bonds, _, _, offset = aa_templates[aa]
+        tmp_coords, tmp_at, bonds, _, _, offset = templates_aa[aa]
         
         v3 = pept_coords[2 + offsets[idx]]  # C
         v2 = pept_coords[1 + offsets[idx]]  # CA
@@ -466,25 +579,33 @@ def _prot_builder_from_seq(sequence):
             bfactors,
             offsets,
             exclusions)
- 
-def _prot_builder_from_pdb(pdb):
+
+
+def _builder_from_pdb(pdb, mol_type):
     """
-    Auxiliary function to build a protein object from a pdb file
+    Auxiliary function to build a protein or glycan object from a pdb file
     """
+    if mol_type == 'protein':
+        templates = templates_aa
+        three_to_one = three_to_one_aa
+    elif mol_type == 'glycan':
+        templates = templates_gl
+        three_to_one = three_to_one_gl
+    
     (names,
      sequence,
-     pept_coords,
+     mol_coords,
      occupancies,
      bfactors,
-     elements) = _pdb_parser(pdb)
+     elements) = _pdb_parser(pdb, three_to_one)
 
     bonds_mol = []
-    _, pept_at, bonds, _, _, offset = aa_templates[sequence[0]]
+    _, _, bonds, _, _, offset = templates[sequence[0]]
     bonds_mol.extend(bonds)
     offsets = [0, offset]
     
     for idx, aa in enumerate(sequence[1:]):
-        offset = aa_templates[aa][-1]
+        offset = templates[aa][-1]
         offsets.append(offsets[idx+1] + offset)
         prev_offset = offsets[-3]
         last_offset = offsets[-2]
@@ -494,7 +615,7 @@ def _prot_builder_from_pdb(pdb):
     exclusions = _exclusiones_1_3(bonds_mol)
     
     return (sequence,
-            pept_coords,
+            mol_coords,
             names,
             elements,
             occupancies,
@@ -503,7 +624,7 @@ def _prot_builder_from_pdb(pdb):
             exclusions)   
 
 
-def _pdb_parser(filename):
+def _pdb_parser(filename, three_to_one):
     """
     This function is very fragile now. It's only works with files saved using
     bomeba or files that has hydrogen a single model and follows the PDB rules
@@ -524,9 +645,13 @@ def _pdb_parser(filename):
     for line in open(filename).readlines():
         if line[0:5] == 'ATOM ':
             name = line[12:16].strip()
-            if name == 'H1':
-                name = 'H'
-            if name not in ['H2', 'H3', 'OXT']:
+            
+            # this rules fix problem with  NMR pdb files, but brake reading glycans
+            # turning them off until better solution
+            #if name == 'H1':
+            #    name = 'H'
+            #if name not in ['H2', 'H3', 'OXT']:
+            if True:
                 serial.append(int(line[6:11]))
                 names.append(name)
                 #altloc.append(line[16])
@@ -548,7 +673,7 @@ def _pdb_parser(filename):
     for i in unique_res:
         aa = three_to_one[resnames[i]]
         sequence += aa
-   
+
     return names, sequence, np.array(xyz), occupancies, bfactors, elements
 
 

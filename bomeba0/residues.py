@@ -491,18 +491,15 @@ V_info = AA_info(coords=np.array([[-0.13, -2.06, -0.86],
                  offset=16)
 
 
-aa_templates = {'A': A_info, 'C': C_info, 'D': D_info, 'E': E_info,
+templates_aa = {'A': A_info, 'C': C_info, 'D': D_info, 'E': E_info,
                 'F': F_info, 'G': G_info, 'H': H_info, 'I': I_info,
                 'K': K_info, 'L': L_info, 'M': M_info, 'N': N_info,
                 'P': P_info, 'Q': Q_info, 'R': R_info, 'S': S_info,
                 'T': T_info, 'V': V_info, 'W': W_info, 'Y': Y_info}
 
-one_to_three = {'A': 'ALA', 'C': 'CYS', 'D': 'ASP', 'E': 'GLU', 'F': 'PHE',
+one_to_three_aa = {'A': 'ALA', 'C': 'CYS', 'D': 'ASP', 'E': 'GLU', 'F': 'PHE',
                 'G': 'GLY', 'H': 'HIS', 'I': 'ILE', 'K': 'LYS', 'L': 'LEU',
                 'M': 'MET', 'N': 'ASN', 'P': 'PRO', 'Q': 'GLN', 'R': 'ARG',
                 'S': 'SER', 'T': 'THR', 'V': 'VAL', 'W': 'TRP', 'Y': 'TYR'}
 
-three_to_one = {'ALA': 'A', 'ARG': 'R', 'ASN': 'N', 'ASP': 'D', 'CYS': 'C',
-                'GLN': 'Q', 'GLU': 'E', 'GLY': 'G', 'HIS': 'H', 'ILE': 'I',
-                'LEU': 'L', 'LYS': 'K', 'MET': 'M', 'PHE': 'F', 'PRO': 'P',
-                'SER': 'S', 'THR': 'T', 'TRP': 'W', 'TYR': 'Y', 'VAL': 'V'}
+three_to_one_aa = {val: key for key, val in one_to_three_aa.items()}
