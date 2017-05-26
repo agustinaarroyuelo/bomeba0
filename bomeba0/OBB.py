@@ -1,7 +1,7 @@
 """
 Write me! 
 """
-from .residues import aa_templates
+from .residues import templates_aa
 
 def _little_boxes(prot):
         """
@@ -24,7 +24,7 @@ def _little_boxes(prot):
         seq = prot.sequence
         lenght = len(seq) - 1
         for resnum, resname in enumerate(seq):
-            resinfo = aa_templates[resname]
+            resinfo = templates_aa[resname]
             offset_0 = offsets[resnum - 1]
             offset_1 = offsets[resnum]
 
