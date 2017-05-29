@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
-from .residues import aa_templates, one_to_three
+from .residues import templates_aa, one_to_three_aa, three_to_one_aa
+from .glycans import templates_gl, one_to_three_gl, three_to_one_gl
 from .utils import mod, perp_vector, get_angle, get_torsional
 from .geometry import rotation_matrix_3d, set_torsional
 from .constants import constants
@@ -68,6 +69,150 @@ class Biomolecule():
         raise NotImplementedError()
 
 
+    def dump_pdb(self, filename, b_factor=None):
+        """
+        Write a molecule object to a pdb file
+
+        Parameters
+        ----------
+        filename : string
+            name of the file without the pdb extension
+        b_factor : list optional
+            list of values to fill the b-factor column. one value per atom
+        """
+        if isinstance(self, Protein):
+            one_to_three = one_to_three_aa
+            templates = templates_aa
+        elif isinstance(self, Glycan):
+            one_to_three = one_to_three_gl
+            templates = templates_gl
+        
+        coords = self.coords
+        names = self._names
+        elements = self._elements
+        sequence = self.sequence
+        
+        if b_factor is None:
+            b_factor = [0.] * len(coords)
+
+        rep_seq_nam = []
+        rep_seq = []
+        for idx, aa in enumerate(sequence):
+            lenght = templates[aa].offset
+            seq_nam = aa * lenght
+            res = [str(idx + 1)] * lenght
+            rep_seq_nam.extend(seq_nam)
+            rep_seq.extend(res)
+
+        fd = open('{}.pdb'.format(filename), 'w')
+        for i in range(len(coords)):
+            serial = str(i + 1)
+            name = names[i]
+            if len(name) < 4:
+                name = ' ' + name
+            resname = one_to_three[rep_seq_nam[i]]
+            resseq = rep_seq[i]
+            line = "ATOM {:>6s} {:<4s} {:>3s} A{:>4s}    {:8.3f}{:8.3f}{:8.3f}  1.00 {:5.2f}           {:2s} \n".format(serial, name, resname, resseq, *coords[i], b_factor[i], elements[i])
+            fd.write(line)
+        fd.close()
+
+
+    def energy(self, cut_off=6., neighbors=None):
+        """
+        Compute the internal energy of a molecule using a pair-wise 
+        Lennard-Jones potential.
+
+        Parameters
+        ----------
+        cut_off : float
+            Only pair of atoms closer than cut_off will be used to compute the
+            energy. Default 6. Only valid when neighbors is None.
+        neighbors: set of tuples
+            Pairs of atoms used to compute the energy. If None (default) the
+            list of neighbors will be computed using a KD-tree (from scipy),
+            see ff.compute_neighbors for details.
+
+        Returns
+        ----------
+        energy : float:
+            molecular energy in Kcal/mol
+
+        """
+        coords = self.coords
+        if neighbors is None:
+            neighbors = compute_neighbors(coords, self._exclusions, cut_off)
+        energy = LJ(neighbors, coords, self._elements)
+        return energy
+
+
+class Protein(Biomolecule):
+    """Protein object"""
+    def __init__(self, sequence=None, pdb=None, ss='strand', tor_list=None):
+        """initialize a new protein from a sequence of amino acids
+
+        Parameters
+        ----------
+        sequence : str
+            protein sequence using one letter code. Accepts lower and uppercase
+            sequences
+            example 'GAD'
+        pdf : file
+            Protein data bank file.
+            For the moment this will only work with "nice" files. Like:
+            * files generated with bomeba
+            * x-ray files from the PDB
+            * Files without missing residues/atoms
+            For NMR files is not able to recognize the different models.
+        ss : str
+            secondary structure to initialize the protein. Two options allowed
+            'strand' (-135, 135)
+            'helix' (-60, -40)
+            This argument is only valid when a sequence is passed and not when
+            the structure is generated from a pdb file
+        
+        Returns
+        ----------
+        Protein object
+        """
+        if sequence is not None:
+            self.sequence = sequence.upper()
+            (self.coords,
+            self._names,
+            self._elements,
+            self.occupancies,
+            self.bfactors,
+            self._offsets,
+            self._exclusions) = _prot_builder_from_seq(self.sequence)
+
+            if tor_list is not None:
+                for idx, val in enumerate(tor_list):
+                    i = float(val[0])
+                    j = float(val[1])
+                    self.set_phi(idx, i)
+                    self.set_psi(idx, j)
+            else:
+                if ss == 'strand':
+                    for i in range(len(self)):
+                        self.set_phi(i, -135)
+                        self.set_psi(i, 135)
+                elif ss == 'helix':
+                    for i in range(len(self)):
+                        self.set_phi(i, -60)
+                        self.set_psi(i, -40)
+
+        elif pdb is not None:
+            (self.sequence,
+            self.coords,
+            self._names,
+            self._elements,
+            self.occupancies,
+            self.bfactors,
+            self._offsets,
+            self._exclusions) = _builder_from_pdb(pdb, 'protein')
+        else:
+            "Please provide a sequence or a pdb file"
+
+
     def at_coords(self, resnum, selection=None):
         """
         Returns the coordinate of an specified residue and atom (optionally)
@@ -95,7 +240,7 @@ class Biomolecule():
             return rescoords
         else:
             resname = self.sequence[resnum]
-            resinfo = aa_templates[resname]
+            resinfo = templates_aa[resname]
             if selection == 'sc':
                 idx = resinfo.sc
             elif selection == 'bb':    
@@ -103,88 +248,6 @@ class Biomolecule():
             else:
                 idx = resinfo.atom_names.index(selection)
             return rescoords[idx]
-
-
-    def dump_pdb(self, filename, b_factor=None):
-        """
-        Write a molecule object to a pdb file
-
-        Parameters
-        ----------
-        filename : string
-            name of the file without the pdb extension
-        b_factor : list optional
-            list of values to fill the b-factor column. one value per atom
-        """
-        coords = self.coords
-        names = self._names
-        elements = self._elements
-        sequence = self.sequence
-        
-        if b_factor is None:
-            b_factor = [1.] * len(coords)
-
-        rep_seq_nam = []
-        rep_seq = []
-        for idx, aa in enumerate(sequence):
-            lenght = aa_templates[aa].offset
-            seq_nam = aa * lenght
-            res = [str(idx + 1)] * lenght
-            rep_seq_nam.extend(seq_nam)
-            rep_seq.extend(res)
-
-        fd = open('{}.pdb'.format(filename), 'w')
-        for i in range(len(coords)):
-            serial = str(i + 1)
-            name = names[i]
-            if len(name) < 4:
-                name = ' ' + name
-            resname = one_to_three[rep_seq_nam[i]]
-            resseq = rep_seq[i]
-            line = "ATOM {:>6s} {:<4s} {:>3s} {:>5s}    {:8.3f}{:8.3f}{:8.3f}  1.00 {:5.2f}           {:2s}  \n".format(serial, name, resname, resseq, *coords[i], b_factor[i], elements[i])
-            fd.write(line)
-        fd.close()
-
-    def energy(self, cut_off=6):
-        """
-        Write ME!
-        """
-        coords = self.coords
-        neighbors = compute_neighbors(coords, self._exclusions, cut_off)
-        energy = LJ(neighbors, coords, self._elements)
-        return energy
-
-
-class Protein(Biomolecule):
-    """Protein object"""
-    def __init__(self, sequence, ss='strand'):
-        """initialize a new protein from a sequence of amino acids
-
-        Parameters
-        ----------
-        sequence : str
-            protein sequence using one letter code.
-            example 'GAD'
-        ss : str
-            secondary structure to initialize the protein. Two options allowed
-            'strand' (-135, 135)
-            'helix' (-60, -40)
-        
-        Returns
-        ----------
-        Protein object
-        """
-        self.sequence = sequence
-        self.coords, self._names, self._elements, self._offsets, self._exclusions = _prot_builder(sequence)
-        # add instance of Protein to TestTube automatically
-        if ss == 'strand':
-            for i in range(len(self)):
-                self.set_phi(i, -135)
-                self.set_psi(i, 135)
-        elif ss == 'helix':
-            for i in range(len(self)):
-                self.set_phi(i, -60)
-                self.set_psi(i, -40)
 
 
     def get_phi(self, resnum):
@@ -261,22 +324,22 @@ class Protein(Biomolecule):
     
         Returns
         ----------
-        DataFrame with the type of torsional angles as columns:
+        DataFrame with the protein sequence and torsional angles.
         
         """
         all_tors = []
-        for i in range(len(self)):
+        for i, aa in enumerate(self.sequence):
             tors = []
             tors.append(round(self.get_phi(i), n_digits))
             tors.append(round(self.get_psi(i), n_digits))
             if sidechain:
                 for j in range(5):
                     tors.append(round(self.get_chi(i, j), n_digits))
-            all_tors.append(tors)
+            all_tors.append([aa] + tors)
         if sidechain:
-            labels = ['phi', 'psi', 'chi1', 'chi2', 'chi3', 'chi4', 'chi5']
+            labels = ['aa', 'phi', 'psi', 'chi1', 'chi2', 'chi3', 'chi4', 'chi5']
         else:
-            labels = ['phi', 'psi']
+            labels = ['aa', 'phi', 'psi']
         df = pd.DataFrame.from_records(all_tors, columns=labels)
         return df
 
@@ -302,9 +365,10 @@ class Protein(Biomolecule):
             # need to fix it
             resname = self.sequence[resnum]
             if resname != 'P':  ## FIXME phi is not changed for P, this is not that bad, but at least we should warn the user
-                H = aa_templates[resname].atom_names.index('H')
+                H = templates_aa[resname].atom_names.index('H')
                 idx_to_fix = (H, H+1)
                 set_torsional(xyz, i, j, theta_rad, idx_to_fix)
+
 
     def set_psi(self, resnum, theta):
         """
@@ -326,23 +390,128 @@ class Protein(Biomolecule):
             # We have made a rotation starting from the next residue and we
             # left C and O atoms unrotated, now we fix this
             resname = self.sequence[resnum]
-            idx_to_fix = (3, aa_templates[resname].offset - 1)
+            idx_to_fix = (3, templates_aa[resname].offset - 1)
             set_torsional(xyz, i, j, theta_rad, idx_to_fix)
 
 
-def _prot_builder(sequence):
+class Glycan(Biomolecule):
+    """Glycan object"""
+    def __init__(self, pdb=None):
+        """initialize a new Glycan from a PDB
+
+        Parameters
+        ----------
+        pdf : file
+            Protein data bank file.
+            For the moment this will only work with "nice" files:        
+        Returns
+        ----------
+        Glycan object
+        """
+        if pdb is not None:
+            (self.sequence,
+            self.coords,
+            self._names,
+            self._elements,
+            self.occupancies,
+            self.bfactors,
+            self._offsets,
+            self._exclusions) = _builder_from_pdb(pdb, 'glycan')
+        else:
+            "Please provide a sequence or a pdb file"
+
+
+    def at_coords(self, resnum, selection=None):
+        """
+        Returns the coordinate of an specified residue and atom (optionally)
+
+        Parameters
+        ----------
+        resnum : int
+            residue number from which to obtain the coordinates
+        selection : string or None
+            selection from which to obtain the coordinates. If none is provided
+            it will return the coordinates of the whole residue (default). Use
+            a valid atom name.
+
+        Returns
+        ----------
+        coords: array
+            Cartesian coordinates of a given residue or a subset of atoms in a
+            given residue.
+        """
+        offsets = self._offsets
+        offset_0, offset_1 = offsets[resnum], offsets[resnum + 1]
+        rescoords = self.coords[offset_0 : offset_1]
+        
+        if selection is None:
+            return rescoords
+        else:
+            resname = self.sequence[resnum]
+            resinfo = templates_gl[resname]
+            idx = resinfo.atom_names.index(selection)
+            return rescoords[idx]
+
+
+    def get_phi(self, resnum):
+        """
+        Compute the dihedral angle phi (OR-C1-O'x-C'x)
+
+        Parameters
+        ----------
+        resnum : int
+            residue number from which to compute torsional
+        """
+        if resnum + 1 < len(self):
+            coords = self.coords
+            this = self._offsets[resnum]
+            next = self._offsets[resnum + 1]
+
+            a = coords[this + 11]
+            b = coords[this]
+            c = coords[next + 4] # true only for bond 1-3
+            d = coords[next + 3] # true only for bond 1-3
+            return get_torsional(a, b, c, d) * constants.radians_to_degrees
+        else:
+            return np.nan
+
+    def get_psi(self, resnum):
+        """
+        Compute the dihedral angle psi (C1-O'x-C'x-C'x-1)
+
+        Parameters
+        ----------
+        resnum : int
+            residue number from which to compute torsional
+        """
+        # N(i),Ca(i),C(i),N(i+1)
+        if resnum + 1 < len(self):
+            coords = self.coords
+            this = self._offsets[resnum]
+            next = self._offsets[resnum + 1]
+
+            a = coords[this]
+            b = coords[next + 4] # true only for bond 1-3
+            c = coords[next + 3] # true only for bond 1-3
+            d = coords[next + 1] # true only for bond 1-3
+            return get_torsional(a, b, c, d) * constants.radians_to_degrees
+        else:
+            return np.nan
+
+
+def _prot_builder_from_seq(sequence):
     """
     Build a protein from a template.
     Adapted from fragbuilder
     """
     names = []
     bonds_mol = []
-    pept_coords, pept_at, bonds, _, _, offset = aa_templates[sequence[0]]
+    pept_coords, pept_at, bonds, _, _, offset = templates_aa[sequence[0]]
     names.extend(pept_at)
     bonds_mol.extend(bonds)
     offsets = [0, offset]
     for idx, aa in enumerate(sequence[1:]):
-        tmp_coords, tmp_at, bonds, _, _, offset = aa_templates[aa]
+        tmp_coords, tmp_at, bonds, _, _, offset = templates_aa[aa]
         
         v3 = pept_coords[2 + offsets[idx]]  # C
         v2 = pept_coords[1 + offsets[idx]]  # CA
@@ -386,7 +555,8 @@ def _prot_builder(sequence):
         # create a list of bonds from the template-bonds by adding the offset
         prev_offset = offsets[-3]
         last_offset = offsets[-2]
-        bonds_mol.extend([(i + last_offset, j + last_offset) for i, j in bonds] + [(2 + prev_offset, last_offset)])
+        bonds_mol.extend([(i + last_offset, j + last_offset)
+                         for i, j in bonds] + [(2 + prev_offset, last_offset)])
 
     offsets.append(offsets[-1] + offset)
     exclusions = _exclusiones_1_3(bonds_mol)
@@ -398,10 +568,115 @@ def _prot_builder(sequence):
         if element in ['1', '2', '3']:
             element = i[1]
         elements.append(element)
+        
+    occupancies = [1.] * len(names)
+    bfactors = [0.] * len(names)
 
-    return pept_coords, names, elements, offsets, exclusions
+    return (pept_coords,
+            names,
+            elements,
+            occupancies,
+            bfactors,
+            offsets,
+            exclusions)
+
+
+def _builder_from_pdb(pdb, mol_type):
+    """
+    Auxiliary function to build a protein or glycan object from a pdb file
+    """
+    if mol_type == 'protein':
+        templates = templates_aa
+        three_to_one = three_to_one_aa
+    elif mol_type == 'glycan':
+        templates = templates_gl
+        three_to_one = three_to_one_gl
     
+    (names,
+     sequence,
+     mol_coords,
+     occupancies,
+     bfactors,
+     elements) = _pdb_parser(pdb, three_to_one)
+
+    bonds_mol = []
+    _, _, bonds, _, _, offset = templates[sequence[0]]
+    bonds_mol.extend(bonds)
+    offsets = [0, offset]
     
+    for idx, aa in enumerate(sequence[1:]):
+        offset = templates[aa][-1]
+        offsets.append(offsets[idx+1] + offset)
+        prev_offset = offsets[-3]
+        last_offset = offsets[-2]
+        bonds_mol.extend([(i + last_offset, j + last_offset) 
+                         for i, j in bonds] + [(2 + prev_offset, last_offset)])
+    offsets.append(offsets[-1] + offset)
+    exclusions = _exclusiones_1_3(bonds_mol)
+    
+    return (sequence,
+            mol_coords,
+            names,
+            elements,
+            occupancies,
+            bfactors,
+            offsets,
+            exclusions)   
+
+
+def _pdb_parser(filename, three_to_one):
+    """
+    This function is very fragile now. It's only works with files saved using
+    bomeba or files that has hydrogen a single model and follows the PDB rules
+    it will not work for example with files from PyMOL.
+    """
+    serial = []
+    names = []
+    #altloc = []
+    resnames = []
+    chainid = []
+    resseq = []
+    #icode = []
+    xyz = []
+    occupancies = []
+    bfactors = []
+    elements = []
+    #charge = []
+    for line in open(filename).readlines():
+        if line[0:5] == 'ATOM ':
+            name = line[12:16].strip()
+            
+            # this rules fix problem with  NMR pdb files, but brake reading glycans
+            # turning them off until better solution
+            #if name == 'H1':
+            #    name = 'H'
+            #if name not in ['H2', 'H3', 'OXT']:
+            if True:
+                serial.append(int(line[6:11]))
+                names.append(name)
+                #altloc.append(line[16])
+                resnames.append(line[17:20])
+                chainid.append(line[21])
+                resseq.append(int(line[22:26]))
+                #icode.append(line[26])
+                xyz.append([float(line[30:38]),
+                            float(line[38:46]),
+                            float(line[46:54])])
+                occupancies.append(float(line[54:60]))
+                bfactors.append(float(line[60:66]))
+                elements.append(line[76:78].strip())
+                #charge.append(line[78:80])
+
+    unique_res = sorted((set([resseq.index(i) for i in resseq])))
+    sequence = ''
+
+    for i in unique_res:
+        aa = three_to_one[resnames[i]]
+        sequence += aa
+
+    return names, sequence, np.array(xyz), occupancies, bfactors, elements
+
+
 def _exclusiones_1_3(bonds_mol):
     # based on the information inside bonds_mol determine the 1-3 exclusions
     # ToDo: write a not-naive version of this

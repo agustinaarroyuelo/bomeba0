@@ -14,11 +14,9 @@ cmd.set('pdb_reformat_names_mode', 2)
 #cmd.set('retain_order', 1)
 sel = 'all'
 
-aa = ['A', 'R', 'N', 'D', 'C', 'E', 'Q', 'G', 'H', 'I', 'L', 'K', 'M',
-      'F', 'P', 'S', 'T', 'W', 'Y', 'V']
+aa = ['BDP', 'NGA']
 
-
-def minimize(selection='all', forcefield='MMFF94s', method='cg',
+def minimize(selection='all', forcefield='GAFF', method='cg',
              nsteps= 2000, conv=1E-8, cutoff=False, cut_vdw=6.0, cut_elec=8.0):
     pdb_string = cmd.get_pdbstr(selection)
     name = cmd.get_legal_name(selection)
@@ -49,11 +47,11 @@ def minimize(selection='all', forcefield='MMFF94s', method='cg',
 
 for res_name in aa:
     ## Get coordinates and offset
-    #cmd.load('templates/protein/{}.pdb'.format(res_name))
-    #stored.IDs = []
-    #cmd.iterate('all','stored.IDs.append((ID))')
-    #cmd.alter('all', 'ID = ID - stored.IDs[0] - 1')
-    cmd.fab(res_name)
+    cmd.load('templates/glycan/{}.pdb'.format(res_name))
+    stored.IDs = []
+    cmd.iterate('all','stored.IDs.append((ID))')
+    cmd.alter('all', 'ID = ID - stored.IDs[0] - 1')
+    #cmd.fab(res_name)
     nrg = minimize(selection=sel, forcefield='GAFF', method='cg', nsteps=2000)
     #print(nrg)
     xyz = cmd.get_coords(sel)
@@ -72,24 +70,16 @@ for res_name in aa:
     bonds = list(set([tuple(sorted(i)) for i in stored.bonds]))
     bonds.sort()
     
-    ## get bb and sc
-    stored.bb = []
-    stored.sc = []
-    bb = '(nbr (name n+ca+c+o) ) and hydro or (name n+ca+c+o)'
-    sc = 'not ({})'.format(bb)
-    cmd.iterate(bb, 'stored.bb.append(ID-1)')
-    cmd.iterate(sc, 'stored.sc.append(ID-1)')
-    
+    bb = []
+    sc = []
     ## small check before returning the results
     if len(stored.atom_names) == offset:
-        if res_name == 'G':
-            stored.atom_names = ['N', 'CA', 'C', 'O', 'H', 'HA2', 'HA3']
         res = """{}_info = AA_info(coords=np.{},
              atom_names = {},
              bb = {},
              sc = {},
              bonds = {},
-             offset = {})\n""".format(res_name, repr(xyz), stored.atom_names, stored.bb, stored.sc, bonds, offset)
+             offset = {})\n""".format(res_name, repr(xyz), stored.atom_names, bb, sc, bonds, offset)
         print(res)
     else:
         print('Something funny is going on here!')

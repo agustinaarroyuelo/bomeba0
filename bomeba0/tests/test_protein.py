@@ -1,5 +1,6 @@
 import numpy as np
 from numpy.testing import assert_almost_equal
+import filecmp
 from ..biomolecules import Protein
 
 seq_reference = 'GG'
@@ -9,20 +10,20 @@ prot = Protein(seq_reference)
 def test_coords():
     coords = prot.coords
     # this test is valid for GG
-    ref_coords = np.array([[-3.20397075,  1.31512566, -0.18621926],
-       [-1.77897075,  1.43212566, -0.48221926],
-       [-0.94997075,  0.72412566,  0.56178074],
-       [-1.17692165,  0.84364961,  1.76862676],
-       [-3.56697075,  0.78112566,  0.67978074],
-       [-1.52697075,  2.45112566, -0.49421926],
-       [-1.57497075,  0.95512566, -1.45921926],
+    ref_coords = np.array([[-3.28713324,  1.37438873, -0.25902808],
+       [-1.83713324,  1.46438873, -0.51902808],
+       [-0.99713324,  0.76438873,  0.53097192],
+       [-1.16706266,  0.8527295 ,  1.72047597],
+       [-3.45713324,  0.84438873,  0.60097192],
+       [-1.60713324,  1.00438873, -1.47902808],
+       [-1.52713324,  2.51438873, -0.52902808],
        [ 0.        ,  0.        ,  0.        ],
-       [ 0.8019035 , -0.68485848,  1.00987606],
-       [ 2.27505457, -0.56390502,  0.70387415],
-       [ 2.68965127,  0.04644274, -0.28499146],
-       [ 0.1984067 , -0.1049676 , -1.05664449],
-       [ 0.52988113, -1.69875279,  1.01545751],
-       [ 0.61920658, -0.21329074,  1.99370516]])
+       [ 0.81779359, -0.68149466,  1.02224199],
+       [ 2.30716697, -0.58905081,  0.75518192],
+       [ 2.80465929, -0.02404619, -0.18549399],
+       [ 0.34230744, -0.23438601, -0.93663697],
+       [ 0.63403818, -0.23355634,  1.99778553],
+       [ 0.5632952 , -1.7459708 ,  1.05089699]])
     assert_almost_equal(coords, ref_coords)
 
 
@@ -70,4 +71,12 @@ def test_at_coords():
     assert_almost_equal(prot.at_coords(1), prot.coords[7:])
     assert_almost_equal(prot.at_coords(1, 'N'), prot.coords[7])
     assert_almost_equal(prot.at_coords(1, 'bb'), prot.coords[7:])
-    assert len(prot.at_coords(1, 'sc')) == 0 
+    assert len(prot.at_coords(1, 'sc')) == 0
+    
+def test_protein():
+    prot.dump_pdb('test_1')
+    prot2 = Protein(pdb='test_1.pdb')
+    prot2.dump_pdb('test_2')
+    assert filecmp.cmp('test_1.pdb', 'test_2.pdb')
+    assert prot.sequence == prot2.sequence
+    

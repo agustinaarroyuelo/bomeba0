@@ -8,9 +8,29 @@ from .constants import par_s_ij, par_eps_ij
 
 
 def compute_neighbors(coords, exclusions, cut_off):
+    """
+    Use a KD-tree (from scipy) to compute the neighbors atoms for each atom.
+
+    Parameters
+    ----------
+    coords : array (m, 3)
+        Cartesian coordinates of a molecule
+    exclusions : set of tuples
+        Pairs of atoms excluded from the computation of the neighbors
+    cut_off : float
+        Only pairs of atoms closer than cut_off will be used to compute the
+        neighbors.
+
+    Results
+    -------
+    neighbors: set of tuples
+        Pairs of neighbors atoms within a given "cut_off" and excluding
+        "exclusions"
+    """
     tree_c = cKDTree(coords)
     all_pairs = tree_c.query_pairs(cut_off)
     return all_pairs - exclusions
+
 
 def LJ(neighbors, xyz, elements, mode='A'):
     """
@@ -58,7 +78,7 @@ def LJ(neighbors, xyz, elements, mode='A'):
     return E_vdw
     
 
-# convenient function just to speed up computation by 2x
+# convenient function just to speed up computation by 3x
 @jit
 def _LJ(xyz, i, j, sigma_ij, epsilon_ij):
 
