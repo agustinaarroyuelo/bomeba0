@@ -3,7 +3,7 @@ import pandas as pd
 from .residues import templates_aa, one_to_three_aa, three_to_one_aa
 from .glycans import templates_gl, one_to_three_gl, three_to_one_gl
 from .utils import mod, perp_vector, get_angle, get_torsional
-from .geometry import rotation_matrix_3d, set_torsional, set_torsional_tmp
+from .geometry import rotation_matrix_3d, set_torsional
 from .constants import constants
 from .ff import compute_neighbors, LJ
 
@@ -361,7 +361,7 @@ class Protein(Biomolecule):
             theta_rad = (self.get_phi(resnum) - theta) * constants.degrees_to_radians
             xyz = self.coords
             i, j, idx_rot = self._rotation_indices[resnum]['phi']
-            set_torsional_tmp(xyz, i, j, idx_rot, theta_rad)
+            set_torsional(xyz, i, j, idx_rot, theta_rad)
             
 
     def set_psi(self, resnum, theta):
@@ -378,15 +378,8 @@ class Protein(Biomolecule):
         if resnum + 1 < len(self):
             theta_rad = (self.get_psi(resnum) - theta) * constants.degrees_to_radians
             xyz = self.coords
-            #i = self._offsets[resnum] + 1
-            #j = i + 1
-            # We have made a rotation starting from the next residue and we
-            # left C and O atoms unrotated, now we fix this
-            #resname = self.sequence[resnum]
-            #idx_to_fix = (3, templates_aa[resname].offset - 1)
-            #set_torsional(xyz, i, j, theta_rad, idx_to_fix)
             i, j, idx_rot = self._rotation_indices[resnum]['psi']
-            set_torsional_tmp(xyz, i, j, idx_rot, theta_rad)
+            set_torsional(xyz, i, j, idx_rot, theta_rad)
 
 
 class Glycan(Biomolecule):
@@ -412,6 +405,8 @@ class Glycan(Biomolecule):
             self.bfactors,
             self._offsets,
             self._exclusions) = _builder_from_pdb(pdb, 'glycan')
+            
+            self._rotation_indices = _get_rotation_indices_gl(self)
         else:
             "Please provide a sequence or a pdb file"
 
@@ -509,13 +504,8 @@ class Glycan(Biomolecule):
         if resnum + 1 < len(self):
             theta_rad = (self.get_phi(resnum) - theta) * constants.degrees_to_radians
             xyz = self.coords
-            i = self._offsets[resnum]  # index of C1
-            resname = self.sequence[resnum + 1]
-            O_idx = templates_gl[resname].atom_names.index('O3')
-            k = self._offsets[resnum + 1]
-            j = k + O_idx   # index of O'x true only for bond 1-3
-            idx_rot = np.arange(k, len(xyz))
-            set_torsional_tmp(xyz, i, j, idx_rot, theta_rad)
+            i, j, idx_rot = self._rotation_indices[resnum]['phi']
+            set_torsional(xyz, i, j, idx_rot, theta_rad)
 
 
     def set_psi(self, resnum, theta):
@@ -532,17 +522,8 @@ class Glycan(Biomolecule):
         if resnum + 1 < len(self):
             theta_rad = (self.get_psi(resnum) - theta) * constants.degrees_to_radians
             xyz = self.coords
-            resname = self.sequence[resnum + 1]
-            O_idx = templates_gl[resname].atom_names.index('O3')
-            k = self._offsets[resnum + 1]
-            i = k + O_idx   # index of O'x true only for bond 1-3
-            
-            C_idx = templates_gl[resname].atom_names.index('C3')
-            j = k + C_idx   # index of C'x true only for bond 1-3    
-
-            idx_rot = np.array(list(set(range(k, len(xyz))) - set([i])))
-
-            set_torsional_tmp(xyz, i, j, idx_rot, theta_rad)
+            i, j, idx_rot = self._rotation_indices[resnum]['psi']
+            set_torsional(xyz, i, j, idx_rot, theta_rad)
 
 
 def _prot_builder_from_seq(sequence):
@@ -746,12 +727,13 @@ def _exclusiones_1_3(bonds_mol):
 
 def _get_rotation_indices_prot(self):
     """
-    
+    Precompute indices that are then used to rotate only the proper portion of
+    the coordinates array. Works only for proteins.
     """
     rotation_indices = []
+    lenght = len(self.coords)
     for resnum in range(0, len(self)):
         d = {}
-        lenght = len(self.coords)
         ###  phi  ###
         i = self._offsets[resnum]
         j = i + 1
@@ -775,6 +757,33 @@ def _get_rotation_indices_prot(self):
         idx_rot = np.array(a) # rotation are faster if idx_rot is an array
         d['psi'] = k, l, idx_rot
         ###  chi  ###
-
         rotation_indices.append(d)
     return rotation_indices
+
+
+def _get_rotation_indices_gl(self):
+    """
+    Precompute indices that are then used to rotate only the proper portion of
+    the coordinates array. Works only for glycans.
+    """
+    rotation_indices = []
+    lenght = len(self.coords)
+    for resnum in range(0, len(self)-1):
+        d = {}
+        ###  phi  ###
+        i = self._offsets[resnum]  # index of C1
+        resname = self.sequence[resnum + 1]
+        O_idx = templates_gl[resname].atom_names.index('O3')
+        k = self._offsets[resnum + 1]
+        j = k + O_idx   # index of O'x true only for bond 1-3
+        idx_rot = np.arange(k, lenght)
+        d['phi'] = i, j, idx_rot
+        ### psi ###
+        C_idx = templates_gl[resname].atom_names.index('C3')
+        l = k + C_idx   # index of C'x true only for bond 1-3    
+        a = list(range(k, lenght))
+        a.remove(j)
+        idx_rot = np.array(a)
+        d['psi'] = j, l, idx_rot     
+        rotation_indices.append(d)
+    return rotation_indices          

@@ -72,7 +72,7 @@ def rotation_matrix_3d(u, theta):
 
 
 @jit
-def set_torsional(xyz, i, j, theta_rad, idx_to_fix):
+def set_torsional(xyz, i, j, idx_rot, theta_rad):
     """
     rotate a set of coordinates around the i-j axis by theta_rad
     xyz: array
@@ -81,26 +81,10 @@ def set_torsional(xyz, i, j, theta_rad, idx_to_fix):
         atom i
     j: int 
         atom j
+    idx_to_rot: array
+        indices of the atoms that will be rotated
     theta_rad: float
         rotation angle in radians
-    idx_to_fix: tuple
-        The rotation is done in such a way that all atoms with and index larger
-        than i are rotated and the rest are kept fixed. Given the way atoms are
-        internally ordered the rotation could introduce distorsions on the
-        geometry of the protein. These are the index of the atoms that should
-        have not been rotated.
-    """
-    xyz_s = xyz - xyz[i]
-    R = rotation_matrix_3d((xyz_s[j]), theta_rad)
-    xyz[:j] = xyz_s[:j]
-    xyz[j:] = xyz_s[j:] @ R
-    xyz[i + idx_to_fix[0]: i + idx_to_fix[1]
-       ] = xyz_s[i + idx_to_fix[0]: i + idx_to_fix[1]]
-    # TODO return to original position????
-    
-@jit
-def set_torsional_tmp(xyz, i, j, idx_rot, theta_rad):
-    """
     """
     xyz_s = xyz - xyz[i]
     R = rotation_matrix_3d((xyz_s[j]), theta_rad)
