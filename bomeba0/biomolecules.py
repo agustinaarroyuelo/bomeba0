@@ -640,9 +640,15 @@ def _builder_from_pdb(pdb, mol_type, linkages):
         if mol_type == 'protein':
             bonds_mol.append((2 + prev_offset, last_offset))
         elif mol_type == 'glycan':
-            O_idx = templates_gl[resname].atom_names.index(
-                'O{}'.format(linkages[idx]))
-            bonds_mol.append((prev_offset, last_offset + O_idx))
+            link = linkages[idx]
+            if link > 0:
+                O_idx = templates_gl[resname].atom_names.index('O{}'.format(link))
+                bonds_mol.append((prev_offset, last_offset + O_idx))
+            else:
+                resname = sequence[idx]
+                O_idx = templates_gl[resname].atom_names.index('O{}'.format(abs(link)))
+                bonds_mol.append((prev_offset + O_idx, last_offset))
+
     offsets.append(offsets[-1] + offset)
     exclusions = _exclusiones_1_3(bonds_mol)
 
@@ -780,11 +786,21 @@ def _get_rotation_indices_gl(self, linkages):
     rotation_indices = {}
     for resnum in range(0, len(self) - 1):
         d = {}
-        this = offsets[resnum]  # index of C1
-        post = offsets[resnum + 1]
-        resname_this = seq[resnum]
-        resname_post = seq[resnum + 1]
         linkage = linkages[resnum]
+        if linkage > 0:  # forward reading
+            this = offsets[resnum]  # index of C1
+            post = offsets[resnum + 1]
+            resname_this = seq[resnum]
+            resname_post = seq[resnum + 1]
+            pre_idx_rot = list(range(post, lenght))
+        else:  # backward reading
+            this = offsets[resnum + 1]  # index of C1
+            post = offsets[resnum]
+            resname_this = seq[resnum + 1]
+            resname_post = seq[resnum]
+            pre_idx_rot = list(range(0, this))
+            linkage = abs(linkage)
+
         template_at_names_this = templates_gl[resname_this].atom_names
         template_at_names_post = templates_gl[resname_post].atom_names
         OR_idx = template_at_names_this.index('OR')
@@ -803,17 +819,21 @@ def _get_rotation_indices_gl(self, linkages):
         j = post + O_idx
         l = post + C_idx
         # making idx_rot an array makes rotation faster later
-        idx_rot = np.arange(post, lenght)
+        idx_rot = np.asarray(pre_idx_rot)
         # the terms of the tuple are the indices of:
         # (two atoms defining the axis of rotation, the atoms that will be rotated)
         # and (OR-C1-O'x-C'x)
         d['phi'] = this, j, idx_rot, this + OR_idx, this, j, l
 
+
         ### psi ###
-        pre_idx_rot = list(range(post, lenght))
         pre_idx_rot.remove(j)
+        #if linkages[resnum] > 0:
+        #    pre_idx_rot.remove(j)
+        #else:
+        #    pre_idx_rot.append(j)
         # making idx_rot an array makes rotation faster later
-        idx_rot = np.array(pre_idx_rot)
+        idx_rot = np.asarray(pre_idx_rot)
         # the terms of the tuple are the indices of:
         # (two atoms defining the axis of rotation, the atoms that will be rotated)
         # (C1-O'x-C'x-C'x-1)
