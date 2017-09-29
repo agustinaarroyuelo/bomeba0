@@ -114,8 +114,12 @@ class Biomolecule():
                 name = ' ' + name
             resname = one_to_three[rep_seq_nam[i]]
             resseq = rep_seq[i]
-            line = "ATOM {:>6s} {:<4s} {:>3s} A{:>4s}    {:8.3f}{:8.3f}{:8.3f}  1.00 {:5.2f}           {:2s} \n".format(
-                serial, name, resname, resseq, *coords[i], b_factor[i], elements[i])
+            line = ("ATOM {:>6s} {:<4s} {:>3s} A{:>4s}"
+                   "    {:8.3f}{:8.3f}{:8.3f}  1.00 {:5.2f}"
+                   "           {:2s} \n").format(serial, name, resname, resseq,
+                                                 *coords[i], b_factor[i],
+                                                 elements[i])
+            #print(line)
             fd.write(line)
         fd.close()
 
@@ -214,6 +218,7 @@ class Protein(Biomolecule):
              self.bfactors,
              self._offsets,
              self._exclusions) = _builder_from_pdb(pdb, 'protein')
+            self._rotation_indices = _get_rotation_indices_prot(self)
         else:
             "Please provide a sequence or a pdb file"
 
@@ -520,6 +525,33 @@ class Glycan(Biomolecule):
             set_torsional(xyz, i, j, idx_rot, theta_rad)
 
 
+    def get_torsionals(self,  n_digits=2):
+        """
+        Compute all phi, psi and chi torsional angles of a given molecule
+
+        Parameters
+        ----------
+        n_digits : int
+            Number of decimal digits used to round the torsional values
+            (default 2 digits).
+
+        Returns
+        ----------
+        DataFrame with the glycan sequence and torsional angles.
+
+        """
+        all_tors = []
+        for i, res in enumerate(self.sequence[:-1]):
+            tors = []
+            tors.append(round(self.get_phi(i), n_digits))
+            tors.append(round(self.get_psi(i), n_digits))
+            all_tors.append([res] + tors)
+        else:
+            labels = ['res', 'phi', 'psi']
+        df = pd.DataFrame.from_records(all_tors, columns=labels)
+        return df
+
+
 def _prot_builder_from_seq(sequence):
     """
     Build a protein from a template.
@@ -582,7 +614,7 @@ def _prot_builder_from_seq(sequence):
                           for i, j in bonds] + [(2 + prev_offset, last_offset)])
 
     offsets.append(offsets[-1] + offset)
-    exclusions = _exclusiones_1_3(bonds_mol)
+    exclusions = _exclusions_1_3(bonds_mol)
 
     # generate a list with the names of chemical elements
     elements = []
@@ -604,7 +636,7 @@ def _prot_builder_from_seq(sequence):
             exclusions)
 
 
-def _builder_from_pdb(pdb, mol_type, linkages):
+def _builder_from_pdb(pdb, mol_type, linkages=None):
     """
     Auxiliary function to build a protein or glycan object from a pdb file
     """
@@ -627,12 +659,13 @@ def _builder_from_pdb(pdb, mol_type, linkages):
     bonds_mol.extend(bonds)
     offsets = [0, offset]
 
+
     for idx, resname in enumerate(sequence[1:]):
         bonds = templates[resname][2]
         offset = templates[resname][-1]
         offsets.append(offsets[idx + 1] + offset)
-        prev_offset = offsets[-3]
-        last_offset = offsets[-2]
+        prev_offset = offsets[idx]
+        last_offset = offsets[idx + 1]
         # shift index of newly added residues
         bonds_mol.extend([(i + last_offset, j + last_offset)
                           for i, j in bonds])
@@ -641,16 +674,32 @@ def _builder_from_pdb(pdb, mol_type, linkages):
             bonds_mol.append((2 + prev_offset, last_offset))
         elif mol_type == 'glycan':
             link = linkages[idx]
-            if link > 0:
-                O_idx = templates_gl[resname].atom_names.index('O{}'.format(link))
-                bonds_mol.append((prev_offset, last_offset + O_idx))
+            if isinstance(link, tuple):
+                prev_offset = offsets[link[0]]
+                resname = sequence[link[0]]
+                link = link[1]
+                if link > 0:
+                    O_idx = templates_gl[resname].atom_names.index('O{}'.format(link))
+                    bonds_mol.append((prev_offset, last_offset + O_idx))
+                    #print('1', prev_offset, last_offset + O_idx)
+                else:
+                    O_idx = templates_gl[resname].atom_names.index('O{}'.format(abs(link)))
+                    bonds_mol.append((prev_offset + O_idx, last_offset))
+                    print('2', prev_offset + O_idx, last_offset)
             else:
-                resname = sequence[idx]
-                O_idx = templates_gl[resname].atom_names.index('O{}'.format(abs(link)))
-                bonds_mol.append((prev_offset + O_idx, last_offset))
+                if link > 0:
+                    O_idx = templates_gl[resname].atom_names.index('O{}'.format(link))
+                    bonds_mol.append((prev_offset, last_offset + O_idx))
+                    #print('3', prev_offset, last_offset + O_idx)
+                else:
+                    resname = sequence[idx]
+                    O_idx = templates_gl[resname].atom_names.index('O{}'.format(abs(link)))
+                    bonds_mol.append((prev_offset + O_idx, last_offset))
+                    #print('b', resname, prev_offset, O_idx, link)
+                    #print('4', prev_offset + O_idx, last_offset)
 
     offsets.append(offsets[-1] + offset)
-    exclusions = _exclusiones_1_3(bonds_mol)
+    exclusions = _exclusions_1_3(bonds_mol)
 
     return (sequence,
             mol_coords,
@@ -715,10 +764,10 @@ def _pdb_parser(filename, three_to_one):
     return names, sequence, np.array(xyz), occupancies, bfactors, elements
 
 
-def _exclusiones_1_3(bonds_mol):
+def _exclusions_1_3(bonds_mol):
     """
      Based on the information inside bonds_mol determine the 1-3 exclusions
-     ToDo: write a not-naive version of this
+     ToDo: write a non-naive version of this
     """
     angles_mol = []
     for idx, i in enumerate(bonds_mol):
@@ -754,7 +803,10 @@ def _get_rotation_indices_prot(self):
         if resname != 'P':
             H = templates_aa[resname].atom_names.index('H')
             a = list(range(j, lenght))
-            a.remove(i + H)  # H atom should not be rotated
+            try:
+                a.remove(i + H)  # H atom should not be rotated
+            except ValueError:
+                pass
             idx_rot = np.array(a)  # rotation are faster if idx_rot is an array
         # else:   # XXX phi is not changed for P, should we?
         #    idx_rot = np.arrange(j, len(xyz))
@@ -776,8 +828,16 @@ def _get_rotation_indices_prot(self):
 
 def _get_rotation_indices_gl(self, linkages):
     """
-    Precompute indices that are then used to rotate only the proper portion of
-    the coordinates array. Works only for glycans.
+    Precompute indices that are then used to rotate along the i-j axis only the
+    proper portion of the coordinates array. Works only for glycans.
+    
+    
+    Returns
+    rotation_indices : dict of dict of tuples 
+        dictionary of residue numbers, dicctionary of torsionals (phi or psi), 
+    7-element tuple: The first 3 elements are atom i (int), atom j (int)
+    indices of the atoms that will be rotated (array). Last four elements atom
+    ids for the atoms defining a torsional angle.
     """
     rotation_indices = []
     lenght = len(self.coords)
@@ -785,8 +845,12 @@ def _get_rotation_indices_gl(self, linkages):
     seq = self.sequence
     rotation_indices = {}
     for resnum in range(0, len(self) - 1):
+        res = resnum
         d = {}
         linkage = linkages[resnum]
+        if isinstance(linkage, tuple):
+            resnum = linkage[0]
+            linkage = linkage[1]     
         if linkage > 0:  # forward reading
             this = offsets[resnum]  # index of C1
             post = offsets[resnum + 1]
@@ -838,5 +902,5 @@ def _get_rotation_indices_gl(self, linkages):
         # (two atoms defining the axis of rotation, the atoms that will be rotated)
         # (C1-O'x-C'x-C'x-1)
         d['psi'] = j, l, idx_rot, this, j, l, post + C__idx
-        rotation_indices[resnum] = d
+        rotation_indices[res] = d
     return rotation_indices
