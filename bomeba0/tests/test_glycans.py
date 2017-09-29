@@ -3,7 +3,7 @@ from numpy.testing import assert_almost_equal
 import filecmp
 from ..biomolecules import Glycan
 
-gc = Glycan('../pdbs/2LIQ_min.pdb', linkages=[4, -3])
+gc = Glycan('pdbs/2LIQ_min.pdb', linkages=[4, -3])
 
 
 def test_exclusions():
@@ -31,7 +31,7 @@ def test_set_get_torsionals():
     # check the functions to set and get torsionals one to each other, and also
     # by checking that the energy is the same after changing torsional and
     # then changing them back to original values 
-    gc_0 = Glycan('../pdbs/2LIQ_min.pdb', linkages=[4, -3])
+    gc_0 = Glycan('pdbs/2LIQ_min.pdb', linkages=[4, -3])
     a, b, c, d = gc_0.get_phi(0), gc_0.get_psi(0), gc_0.get_phi(1), gc_0.get_psi(1)
     nrg_0 = gc_0.energy()
     for i in range(len(gc) - 1):
