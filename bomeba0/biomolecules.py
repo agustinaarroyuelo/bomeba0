@@ -153,6 +153,17 @@ class Biomolecule():
         return energy
 
 
+    def rgyr(self):
+        """
+        Calculates radius of gyration for a molecule
+        ToDo mass-weighted version ¿?
+
+        """
+        coords = self.coords
+        center = np.mean(coords, 0)
+        return np.mean(np.sum((coords - center)**2, 1)) ** 0.5
+
+
 class Protein(Biomolecule):
     """Protein object"""
 
@@ -184,9 +195,9 @@ class Protein(Biomolecule):
             sequence. Works together with sequence.
         regularize : bool
             Whether to regularize the structure. Regularization is needed for
-            some computations like getting and setting torsionals angles. Only
-            works with the `pdb` argument. If a sequence is passed it will be
-            always regularized, since the protein will be constructed from the
+            some computations like setting torsionals angles. Only works with
+            the `pdb` argument. If a sequence is passed it will be always
+            regularized, since the protein will be constructed from the
             templates.
         Returns
         ----------
@@ -269,14 +280,17 @@ class Protein(Biomolecule):
             return rescoords
         else:
             resname = self.sequence[resnum]
+            # this only works for structures from sequence
             resinfo = templates_aa[resname]
             if selection == 'sc':
                 idx = resinfo.sc
             elif selection == 'bb':
                 idx = resinfo.bb
             else:
-                idx = resinfo.atom_names.index(selection)
+                atom_names = self._names[offset_0: offset_1]
+                idx = atom_names.index(selection)
             return rescoords[idx]
+
 
     def get_phi(self, resnum):
         """
