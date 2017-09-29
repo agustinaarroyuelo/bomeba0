@@ -71,7 +71,7 @@ class Biomolecule():
     def get_torsionals(self):
         raise NotImplementedError()
 
-    def dump_pdb(self, filename, b_factor=None):
+    def dump_pdb(self, filename, b_factors=None):
         """
         Write a molecule object to a pdb file
 
@@ -79,7 +79,7 @@ class Biomolecule():
         ----------
         filename : string
             name of the file without the pdb extension
-        b_factor : list optional
+        b_factors : list optional
             list of values to fill the b-factor column. one value per atom
         """
         if isinstance(self, Protein):
@@ -94,8 +94,10 @@ class Biomolecule():
         elements = self._elements
         sequence = self.sequence
 
-        if b_factor is None:
-            b_factor = [0.] * len(coords)
+        if b_factors is None:
+            b_factors = [0.] * len(coords)
+        else:
+            b_factors = self.bfactors
 
         rep_seq_nam = []
         rep_seq = []
@@ -117,7 +119,7 @@ class Biomolecule():
             line = ("ATOM {:>6s} {:<4s} {:>3s} A{:>4s}"
                    "    {:8.3f}{:8.3f}{:8.3f}  1.00 {:5.2f}"
                    "           {:2s} \n").format(serial, name, resname, resseq,
-                                                 *coords[i], b_factor[i],
+                                                 *coords[i], b_factors[i],
                                                  elements[i])
             #print(line)
             fd.write(line)
@@ -154,7 +156,8 @@ class Biomolecule():
 class Protein(Biomolecule):
     """Protein object"""
 
-    def __init__(self, sequence=None, pdb=None, ss='strand', tor_list=None):
+    def __init__(self, sequence=None, pdb=None, ss='strand', torsionals=None,
+                 regularize=False):
         """initialize a new protein from a sequence of amino acids
 
         Parameters
@@ -163,7 +166,7 @@ class Protein(Biomolecule):
             protein sequence using one letter code. Accepts lower and uppercase
             sequences
             example 'GAD'
-        pdf : file
+        pdb : file
             Protein data bank file.
             For the moment this will only work with "nice" files. Like:
             * files generated with bomeba
@@ -176,7 +179,15 @@ class Protein(Biomolecule):
             'helix' (-60, -40)
             This argument is only valid when a sequence is passed and not when
             the structure is generated from a pdb file
-
+        torsionals : list of tuples
+            list of phi and psi torsionals angles one tuple per residue in
+            sequence. Works together with sequence.
+        regularize : bool
+            Whether to regularize the structure. Regularization is needed for
+            some computations like getting and setting torsionals angles. Only
+            works with the `pdb` argument. If a sequence is passed it will be
+            always regularized, since the protein will be constructed from the
+            templates.
         Returns
         ----------
         Protein object
@@ -193,8 +204,8 @@ class Protein(Biomolecule):
 
             self._rotation_indices = _get_rotation_indices_prot(self)
 
-            if tor_list is not None:
-                for idx, val in enumerate(tor_list):
+            if torsionals is not None:
+                for idx, val in enumerate(torsionals):
                     i = float(val[0])
                     j = float(val[1])
                     self.set_phi(idx, i)
@@ -217,10 +228,19 @@ class Protein(Biomolecule):
              self.occupancies,
              self.bfactors,
              self._offsets,
-             self._exclusions) = _builder_from_pdb(pdb, 'protein')
-            self._rotation_indices = _get_rotation_indices_prot(self)
+             self._exclusions) = _builder_from_pdb(pdb,
+                                                   'protein',
+                                                   regularize)
+            if regularize is not False:
+                self._rotation_indices = _get_rotation_indices_prot(self)
         else:
             "Please provide a sequence or a pdb file"
+
+    def __repr__(self):
+        """
+        ToDo do something useful
+        """
+        return 'I am a protein'
 
     def at_coords(self, resnum, selection=None):
         """
@@ -411,9 +431,11 @@ class Glycan(Biomolecule):
              self.occupancies,
              self.bfactors,
              self._offsets,
-             self._exclusions) = _builder_from_pdb(pdb, 'glycan', linkages)
+             self._exclusions) = _builder_from_pdb(pdb, 'glycan',
+                                                   regularize=True,
+                                                   linkages=linkages)
 
-            self._rotation_indices = _get_rotation_indices_gl(self, linkages)
+            self._rotation_indices = _get_rotation_indices_gl(self, linkages=linkages)
         else:
             "Please provide a sequence or a pdb file"
 
@@ -636,7 +658,7 @@ def _prot_builder_from_seq(sequence):
             exclusions)
 
 
-def _builder_from_pdb(pdb, mol_type, linkages=None):
+def _builder_from_pdb(pdb, mol_type, regularize=False, linkages=None):
     """
     Auxiliary function to build a protein or glycan object from a pdb file
     """
@@ -652,63 +674,76 @@ def _builder_from_pdb(pdb, mol_type, linkages=None):
      mol_coords,
      occupancies,
      bfactors,
-     elements) = _pdb_parser(pdb, three_to_one)
+     elements,
+     offsets) = _pdb_parser(pdb, three_to_one)
 
-    bonds_mol = []
-    _, _, bonds, _, _, offset = templates[sequence[0]]
-    bonds_mol.extend(bonds)
-    offsets = [0, offset]
+    if not regularize:
+        exclusions = []
+        return (sequence,
+                mol_coords,
+                names,
+                elements,
+                occupancies,
+                bfactors,
+                offsets,
+                exclusions)
+    
+    else:
+        bonds_mol = []
+        _, _, bonds, _, _, offset = templates[sequence[0]]
+        bonds_mol.extend(bonds)
+        offsets = [0, offset]
 
+        for idx, resname in enumerate(sequence[1:]):
+            bonds = templates[resname][2]
+            offset = templates[resname][-1]
+            offsets.append(offsets[idx + 1] + offset)
+            prev_offset = offsets[idx]
+            last_offset = offsets[idx + 1]
+            # shift index of newly added residues
+            bonds_mol.extend([(i + last_offset, j + last_offset)
+                              for i, j in bonds])
+            # add bond between residues (not listed in the templates)
+            if mol_type == 'protein':
+                bonds_mol.append((2 + prev_offset, last_offset))
+            elif mol_type == 'glycan':
 
-    for idx, resname in enumerate(sequence[1:]):
-        bonds = templates[resname][2]
-        offset = templates[resname][-1]
-        offsets.append(offsets[idx + 1] + offset)
-        prev_offset = offsets[idx]
-        last_offset = offsets[idx + 1]
-        # shift index of newly added residues
-        bonds_mol.extend([(i + last_offset, j + last_offset)
-                          for i, j in bonds])
-        # add bond between residues (not listed in the templates)
-        if mol_type == 'protein':
-            bonds_mol.append((2 + prev_offset, last_offset))
-        elif mol_type == 'glycan':
-            link = linkages[idx]
-            if isinstance(link, tuple):
-                prev_offset = offsets[link[0]]
-                resname = sequence[link[0]]
-                link = link[1]
-                if link > 0:
-                    O_idx = templates_gl[resname].atom_names.index('O{}'.format(link))
-                    bonds_mol.append((prev_offset, last_offset + O_idx))
-                    #print('1', prev_offset, last_offset + O_idx)
+                link = linkages[idx]
+                if isinstance(link, tuple):
+                    prev_offset = offsets[link[0]]
+                    resname = sequence[link[0]]
+                    link = link[1]
+                    if link > 0:
+                        O_idx = templates_gl[resname].atom_names.index('O{}'.format(link))
+                        bonds_mol.append((prev_offset, last_offset + O_idx))
+                        #print('1', prev_offset, last_offset + O_idx)
+                    else:
+                        O_idx = templates_gl[resname].atom_names.index('O{}'.format(abs(link)))
+                        bonds_mol.append((prev_offset + O_idx, last_offset))
+                        print('2', prev_offset + O_idx, last_offset)
                 else:
-                    O_idx = templates_gl[resname].atom_names.index('O{}'.format(abs(link)))
-                    bonds_mol.append((prev_offset + O_idx, last_offset))
-                    print('2', prev_offset + O_idx, last_offset)
-            else:
-                if link > 0:
-                    O_idx = templates_gl[resname].atom_names.index('O{}'.format(link))
-                    bonds_mol.append((prev_offset, last_offset + O_idx))
-                    #print('3', prev_offset, last_offset + O_idx)
-                else:
-                    resname = sequence[idx]
-                    O_idx = templates_gl[resname].atom_names.index('O{}'.format(abs(link)))
-                    bonds_mol.append((prev_offset + O_idx, last_offset))
-                    #print('b', resname, prev_offset, O_idx, link)
-                    #print('4', prev_offset + O_idx, last_offset)
-
-    offsets.append(offsets[-1] + offset)
-    exclusions = _exclusions_1_3(bonds_mol)
-
-    return (sequence,
-            mol_coords,
-            names,
-            elements,
-            occupancies,
-            bfactors,
-            offsets,
-            exclusions)
+                    if link > 0:
+                        O_idx = templates_gl[resname].atom_names.index('O{}'.format(link))
+                        bonds_mol.append((prev_offset, last_offset + O_idx))
+                        #print('3', prev_offset, last_offset + O_idx)
+                    else:
+                        resname = sequence[idx]
+                        O_idx = templates_gl[resname].atom_names.index('O{}'.format(abs(link)))
+                        bonds_mol.append((prev_offset + O_idx, last_offset))
+                        #print('b', resname, prev_offset, O_idx, link)
+                        #print('4', prev_offset + O_idx, last_offset)
+    
+        offsets.append(offsets[-1] + offset)
+        exclusions = _exclusions_1_3(bonds_mol)
+    
+        return (sequence,
+                mol_coords,
+                names,
+                elements,
+                occupancies,
+                bfactors,
+                offsets,
+                exclusions)
 
 
 def _pdb_parser(filename, three_to_one):
@@ -761,7 +796,14 @@ def _pdb_parser(filename, three_to_one):
         aa = three_to_one[resnames[i]]
         sequence += aa
 
-    return names, sequence, np.array(xyz), occupancies, bfactors, elements
+    tmp = []
+    offsets = []
+    for idx, a in enumerate(resseq):
+        if a not in tmp:
+            tmp.append(a)
+            offsets.append(idx)
+    offsets.append(idx + 1)
+    return names, sequence, np.array(xyz), occupancies, bfactors, elements, offsets
 
 
 def _exclusions_1_3(bonds_mol):
