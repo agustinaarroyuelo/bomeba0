@@ -1,7 +1,7 @@
 from collections import namedtuple
 import numpy as np
 """
-Templates for amino acidic residues
+Templates for glycan residues
 """
 
 AA_info = namedtuple('AA_info', 'coords atom_names bonds bb sc offset')
