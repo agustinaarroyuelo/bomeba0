@@ -1,7 +1,7 @@
 import numpy as np
 from numpy.testing import assert_almost_equal
 import filecmp
-from ..biomolecules import Protein
+from ..molecules.protein import Protein
 
 seq_reference = 'GG'
 prot = Protein(seq_reference)

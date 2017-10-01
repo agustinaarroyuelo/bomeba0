@@ -1,7 +1,7 @@
 import numpy as np
 from numpy.testing import assert_almost_equal
 import filecmp
-from ..biomolecules import Glycan
+from ..molecules.glycan import Glycan
 
 path = '/home/travis/build/BIOS-IMASL/bomeba0/bomeba0/pdbs'
 
