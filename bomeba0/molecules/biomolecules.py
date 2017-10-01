@@ -6,6 +6,7 @@ from ..templates.aminoacids import templates_aa, one_to_three_aa
 from ..templates.glycans import templates_gl, one_to_three_gl
 from ..ff import compute_neighbors, LJ
 from ..pdbIO import _dump_pdb
+from ..visualization.view3d import _view3d
 
 
 class Biomolecule():
@@ -25,8 +26,11 @@ class Biomolecule():
     def get_torsionals(self):
         raise NotImplementedError()
 
-    def dump_pdb(self, filename, b_factors=None):
-        _dump_pdb(self, filename, b_factors)
+    def dump_pdb(self, filename, b_factors=None, to_file=True):
+        return _dump_pdb(self, filename, b_factors, to_file)
+
+    def view3d(self):
+        return _view3d(self)
 
     def energy(self, cut_off=6., neighbors=None):
         """
