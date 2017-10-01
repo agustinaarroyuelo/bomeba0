@@ -14,7 +14,10 @@ cmd.set('pdb_reformat_names_mode', 2)
 #cmd.set('retain_order', 1)
 sel = 'all'
 
-aa = ['BDP', 'NGA']
+#aa = ['BDP', 'NGA']
+#aa = ['AFL', 'NAG', 'MAG']
+
+aa = ['B6D', 'A2G', 'BGC']
 
 def minimize(selection='all', forcefield='GAFF', method='cg',
              nsteps= 2000, conv=1E-8, cutoff=False, cut_vdw=6.0, cut_elec=8.0):
