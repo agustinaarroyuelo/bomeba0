@@ -267,7 +267,7 @@ def _exclusions_1_3(bonds_mol):
     return set([tuple(sorted(i)) for i in exclusions])
     
 
-def _dump_pdb(self, filename, b_factors=None):
+def _dump_pdb(self, filename, b_factors, to_file):
     """
     Write a molecule object to a pdb file
 
@@ -277,6 +277,8 @@ def _dump_pdb(self, filename, b_factors=None):
         name of the file without the pdb extension
     b_factors : list optional
         list of values to fill the b-factor column. one value per atom
+    to_file : bool
+        whether to save the pdb to a file (default) or return a string
     """
     if isinstance(self, bmb.Protein):
         one_to_three = one_to_three_aa
@@ -304,7 +306,7 @@ def _dump_pdb(self, filename, b_factors=None):
         rep_seq_nam.extend(seq_nam)
         rep_seq.extend(res)
 
-    fd = open('{}.pdb'.format(filename), 'w')
+    pdb_str = ''
     for i in range(len(coords)):
         serial = str(i + 1)
         name = names[i]
@@ -312,11 +314,17 @@ def _dump_pdb(self, filename, b_factors=None):
             name = ' ' + name
         resname = one_to_three[rep_seq_nam[i]]
         resseq = rep_seq[i]
-        line = ("ATOM {:>6s} {:<4s} {:>3s} A{:>4s}"
-               "    {:8.3f}{:8.3f}{:8.3f}  1.00 {:5.2f}"
-               "           {:2s} \n").format(serial, name, resname, resseq,
-                                             *coords[i], b_factors[i],
-                                             elements[i])
-        #print(line)
-        fd.write(line)
-    fd.close()
+        pdb_str = pdb_str + ("ATOM {:>6s} {:<4s} {:>3s} A{:>4s}"
+                             "    {:8.3f}{:8.3f}{:8.3f}  1.00 {:5.2f}"
+                             "           {:2s} \n").format(serial, name,
+                                                           resname, resseq,
+                                                           *coords[i],
+                                                           b_factors[i],
+                                                           elements[i])
+
+    if to_file:
+        fd = open('{}.pdb'.format(filename), 'w')
+        fd.write(pdb_str)
+        fd.close()
+    else:
+        return pdb_str
