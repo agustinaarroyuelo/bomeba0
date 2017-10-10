@@ -6,6 +6,6 @@ setup(name='bomeba0',
       author='Agustina Arroyuelo and Osvaldo Martin',
       author_email='agustinaarroyuelo@gmail.com, aloctavodia@gmail.com',
       url='https://github.com/bomeba/bomeba0',
-      install_requires=['numpy', 'scipy', 'matplotlib', 'numba', 'py3dmol']
+      install_requires=['numpy', 'scipy', 'matplotlib', 'numba', 'py3dmol'],
       packages=['bomeba0'],
       )
