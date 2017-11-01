@@ -88,14 +88,15 @@ class Protein(Biomolecule):
  
             self._exclusions = []
             self._rotation_indices = _get_rotation_indices_prot(self)
+
             if regularize:
                 torsionals = self.get_torsionals(n_digits=4)
 
                 (self.coords,
                  self._names,
                  self._elements,
-                 _,
-                 _,
+                 self.occupancies,
+                 self.bfactors,
                  self._offsets,
                  self._exclusions) = _prot_builder_from_seq(self.sequence)
                 self._rotation_indices = _get_rotation_indices_prot(self)
