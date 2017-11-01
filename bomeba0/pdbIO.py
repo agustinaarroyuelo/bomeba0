@@ -1,5 +1,5 @@
 """
-Collection of functions related to generating molecules from sequence and pdb 
+Collection of functions related to generating molecules from sequence or pdb 
 files
 """
 
@@ -96,10 +96,12 @@ def _prot_builder_from_seq(sequence):
             exclusions)
 
 
-def _builder_from_pdb(pdb, mol_type, regularize=False, linkages=None):
+def _builder_from_pdb_gl(pdb, mol_type, regularize=False, linkages=None):
     """
-    Auxiliary function to build a protein or glycan object from a pdb file
+    Auxiliary function to build a glycan object from a pdb file
     """
+    # FIXME make this function exclusive to glycans, since que already have one
+    # for proteins. Also  everything related to glycans is really messy.
     if mol_type == 'protein':
         templates = templates_aa
         three_to_one = three_to_one_aa
@@ -190,7 +192,7 @@ def _pdb_parser(filename, three_to_one):
     bomeba or files that has hydrogen a single model and follows the PDB rules
     it will not work for example with files from PyMOL.
     """
-    serial = []
+    #serial = []
     names = []
     #altloc = []
     resnames = []
@@ -204,28 +206,20 @@ def _pdb_parser(filename, three_to_one):
     #charge = []
     for line in open(filename).readlines():
         if line[0:5] == 'ATOM ':
-            name = line[12:16].strip()
-
-            # this rules fix problem with  NMR pdb files, but brake reading glycans
-            # turning them off until better solution
-            # if name == 'H1':
-            #    name = 'H'
-            # if name not in ['H2', 'H3', 'OXT']:
-            if True:
-                serial.append(int(line[6:11]))
-                names.append(name)
-                # altloc.append(line[16])
-                resnames.append(line[17:20])
-                chainid.append(line[21])
-                resseq.append(int(line[22:26]))
-                # icode.append(line[26])
-                xyz.append([float(line[30:38]),
-                            float(line[38:46]),
-                            float(line[46:54])])
-                occupancies.append(float(line[54:60]))
-                bfactors.append(float(line[60:66]))
-                elements.append(line[76:78].strip())
-                # charge.append(line[78:80])
+            #serial.append(int(line[6:11]))
+            names.append(line[12:16].strip())
+            # altloc.append(line[16])
+            resnames.append(line[17:20])
+            chainid.append(line[21])
+            resseq.append(int(line[22:26]))
+            # icode.append(line[26])
+            xyz.append([float(line[30:38]),
+                        float(line[38:46]),
+                        float(line[46:54])])
+            occupancies.append(float(line[54:60]))
+            bfactors.append(float(line[60:66]))
+            elements.append(line[76:78].strip())
+            # charge.append(line[78:80])
 
     unique_res = sorted((set([resseq.index(i) for i in resseq])))
     sequence = ''
@@ -233,7 +227,6 @@ def _pdb_parser(filename, three_to_one):
     for i in unique_res:
         aa = three_to_one[resnames[i]]
         sequence += aa
-
     tmp = []
     offsets = []
     for idx, a in enumerate(resseq):
