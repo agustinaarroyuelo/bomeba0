@@ -4,9 +4,9 @@ Protein class
 import numpy as np
 import pandas as pd
 from .biomolecules import Biomolecule
-from ..templates.aminoacids import templates_aa
+from ..templates.aminoacids import templates_aa, three_to_one_aa
 from ..constants import constants
-from ..pdbIO import _prot_builder_from_seq, _builder_from_pdb
+from ..pdbIO import _prot_builder_from_seq, _pdb_parser
 from ..utils import get_torsional
 from ..geometry import set_torsional
 
@@ -27,9 +27,9 @@ class Protein(Biomolecule):
             Protein data bank file.
             For the moment this will only work with "nice" files. Like:
             * files generated with bomeba
-            * x-ray files from the PDB
+            * Files with only one chain
             * Files without missing residues/atoms
-            For NMR files is not able to recognize the different models.
+            * Files with only one model
         ss : str
             secondary structure to initialize the protein. Two options allowed
             'strand' (-135, 135)
@@ -78,18 +78,32 @@ class Protein(Biomolecule):
                         self.set_psi(i, -40)
 
         elif pdb is not None:
-            (self.sequence,
+            (self._names,
+             self.sequence,
              self.coords,
-             self._names,
-             self._elements,
              self.occupancies,
              self.bfactors,
-             self._offsets,
-             self._exclusions) = _builder_from_pdb(pdb,
-                                                   'protein',
-                                                   regularize)
-            if regularize is not False:
+             self._elements,
+             self._offsets) = _pdb_parser(pdb, three_to_one_aa)
+ 
+            self._exclusions = []
+            self._rotation_indices = _get_rotation_indices_prot(self)
+            if regularize:
+                torsionals = self.get_torsionals(n_digits=4)
+
+                (self.coords,
+                 self._names,
+                 self._elements,
+                 _,
+                 _,
+                 self._offsets,
+                 self._exclusions) = _prot_builder_from_seq(self.sequence)
                 self._rotation_indices = _get_rotation_indices_prot(self)
+
+                for idx, val in enumerate(torsionals[['phi', 'psi']].values):
+                    self.set_phi(idx, val[0])
+                    self.set_psi(idx, val[1])
+
         else:
             "Please provide a sequence or a pdb file"
 
