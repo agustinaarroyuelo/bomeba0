@@ -284,16 +284,21 @@ def _dump_pdb(self, filename, b_factors, to_file):
     names = self._names
     elements = self._elements
     sequence = self.sequence
+    occupancies = self.occupancies
+    offsets = self._offsets
 
     if b_factors is None:
-        b_factors = [0.] * len(coords)
-    else:
         b_factors = self.bfactors
+    else:
+        b_factors = bfactors
 
     rep_seq_nam = []
     rep_seq = []
+    offset_0 = offsets[0]
     for idx, aa in enumerate(sequence):
-        lenght = templates[aa].offset
+        offset_1 = offsets[idx + 1]
+        lenght = offset_1 - offset_0
+        offset_0 = offset_1
         seq_nam = aa * lenght
         res = [str(idx + 1)] * lenght
         rep_seq_nam.extend(seq_nam)
@@ -308,11 +313,12 @@ def _dump_pdb(self, filename, b_factors, to_file):
         resname = one_to_three[rep_seq_nam[i]]
         resseq = rep_seq[i]
         pdb_str = pdb_str + ("ATOM {:>6s} {:<4s} {:>3s} A{:>4s}"
-                             "    {:8.3f}{:8.3f}{:8.3f}  1.00 {:5.2f}"
+                             "    {:8.3f}{:8.3f}{:8.3f}{:6.2f}{:6.2f}"
                              "           {:2s} \n").format(serial, name,
                                                            resname, resseq,
                                                            *coords[i],
                                                            b_factors[i],
+                                                           occupancies[i],
                                                            elements[i])
 
     if to_file:
