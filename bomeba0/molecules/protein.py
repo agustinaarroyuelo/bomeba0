@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from .biomolecules import Biomolecule
 from ..templates.aminoacids import templates_aa, three_to_one_aa
-from ..constants import constants
+from ..constants import constants, rotamers
 from ..pdbIO import _prot_builder_from_seq, _pdb_parser
 from ..utils import get_torsional
 from ..geometry import set_torsional
@@ -91,6 +91,7 @@ class Protein(Biomolecule):
 
             if regularize:
                 torsionals = self.get_torsionals(n_digits=4)
+                tors = torsionals[['phi', 'psi', 'omega']].values
 
                 (self.coords,
                  self._names,
@@ -101,9 +102,10 @@ class Protein(Biomolecule):
                  self._exclusions) = _prot_builder_from_seq(self.sequence)
                 self._rotation_indices = _get_rotation_indices_prot(self)
 
-                for idx, val in enumerate(torsionals[['phi', 'psi']].values):
+                for idx, val in enumerate(tors):
                     self.set_phi(idx, val[0])
                     self.set_psi(idx, val[1])
+                    self.set_omega(idx, val[2])
 
         else:
             "Please provide a sequence or a pdb file"
@@ -198,6 +200,28 @@ class Protein(Biomolecule):
         else:
             return np.nan
 
+    def get_omega(self, resnum):
+        """
+        Compute omega torsional angle
+
+        Parameters
+        ----------
+        resnum : int
+            residue number from which to compute torsional
+        """
+        # Ca(i),C(i),N(i+1), Ca(i+1)
+        if resnum < len(self) - 1:
+            coords = self.coords
+            post = self._offsets[resnum + 1]
+            this = self._offsets[resnum]
+            a = coords[this + 1]
+            b = coords[this + 2]
+            c = coords[post]
+            d = coords[post + 1]
+            return get_torsional(a, b, c, d) * constants.radians_to_degrees
+        else:
+            return np.nan
+
     def get_chi(self, resnum, chi_num):
         """
         Compute chi torsional angle
@@ -209,7 +233,29 @@ class Protein(Biomolecule):
         chi_num : int
             number of chi, some residues have more than one chi torsional:
         """
-        return np.nan
+        coords = self.coords
+        seq = self.sequence
+        resname = seq[resnum]
+        if resname not in rotamers[chi_num]:
+            return np.nan
+        else:
+            this = self._offsets[resnum]
+            if chi_num == 1:
+                a = coords[this]
+                b = coords[this + 1]
+                c = coords[this + 4]
+                d = coords[this + 5]
+            elif chi_num == 2:
+                a = coords[this + 1]
+                b = coords[this + 4]
+                c = coords[this + 5]
+                d = coords[this + 6]
+            elif chi_num >= 3:
+                a = coords[this + chi_num + 1]
+                b = coords[this + chi_num + 2]
+                c = coords[this + chi_num + 3]
+                d = coords[this + chi_num + 4]
+            return get_torsional(a, b, c, d) * constants.radians_to_degrees
 
     def get_torsionals(self, sidechain=True, n_digits=2):
         """
@@ -234,21 +280,23 @@ class Protein(Biomolecule):
             tors = []
             tors.append(round(self.get_phi(i), n_digits))
             tors.append(round(self.get_psi(i), n_digits))
+            tors.append(round(self.get_omega(i), n_digits))
             if sidechain:
-                for j in range(5):
+                for j in range(1, 6):
                     tors.append(round(self.get_chi(i, j), n_digits))
             all_tors.append([aa] + tors)
         if sidechain:
-            labels = ['aa', 'phi', 'psi', 'chi1',
+            labels = ['aa', 'phi', 'psi', 'omega', 'chi1',
                       'chi2', 'chi3', 'chi4', 'chi5']
         else:
-            labels = ['aa', 'phi', 'psi']
+            labels = ['aa', 'phi', 'psi', 'omega']
         df = pd.DataFrame.from_records(all_tors, columns=labels)
         return df
 
     def set_phi(self, resnum, theta):
         """
-        set the phi torsional angle C(i-1),N(i),Ca(i),C(i) to the value theta
+        set the phi torsional angle C(i-1),N(i),Ca(i),C(i) of residue `resnum`
+        to the value `theta`.
 
         Parameters
         ----------
@@ -266,7 +314,8 @@ class Protein(Biomolecule):
 
     def set_psi(self, resnum, theta):
         """
-        set the psi torsional angle N(i),Ca(i),C(i),N(i+1) to the value theta
+        set the psi torsional angle N(i),Ca(i),C(i),N(i+1) of residue `resnum`
+        to the value `theta`.
 
         Parameters
         ----------
@@ -281,7 +330,25 @@ class Protein(Biomolecule):
             xyz = self.coords
             i, j, idx_rot = self._rotation_indices[resnum]['psi']
             set_torsional(xyz, i, j, idx_rot, theta_rad)
-            
+
+    def set_omega(self, resnum, theta):
+        """
+        Set the omega torsional angle Ca(i),C(i),N(i+1),Ca(i+1) of residue
+        `resnum` to the value `theta`.
+
+        Parameters
+        ----------
+        resnum : int
+            residue number from which to compute torsional
+        theta : float
+            value of the angle to set in degrees
+        """
+        if resnum + 1 < len(self):
+            theta_rad = (self.get_omega(resnum) - theta) * \
+                constants.degrees_to_radians
+            xyz = self.coords
+            i, j, idx_rot = self._rotation_indices[resnum]['omega']
+            set_torsional(xyz, i, j, idx_rot, theta_rad)
             
 def _get_rotation_indices_prot(self):
     """
@@ -292,28 +359,31 @@ def _get_rotation_indices_prot(self):
     lenght = len(self.coords)
     for resnum in range(0, len(self)):
         d = {}
-        ###  phi  ###
-        i = self._offsets[resnum]
-        j = i + 1
+        ###      phi        ###
+                 ###    psi      ###
+                      ###    omega      ###
+        # C(h),N(i),Ca(i),C(i),N(j) Ca(j)
+        N_i = self._offsets[resnum]
+        Ca_i = N_i + 1
+        C_i = N_i + 2
+        N_j = self._offsets[resnum + 1]
         resname = self.sequence[resnum]
-        a = list(range(j, lenght))
+        a = list(range(Ca_i, lenght))
         try:
             H = templates_aa[resname].atom_names.index('H')
-            a.remove(i + H)  # H atom should not be rotated
+            a.remove(N_i + H)  # H atom should not be rotated
         except ValueError:
             pass
         idx_rot = np.array(a)  # rotation are faster if idx_rot is an array
-        d['phi'] = i, j, idx_rot
-        ###  psi  ###
-        # N(i),Ca(i),C(i),N(i+1)
-        k = self._offsets[resnum] + 1
-        l = k + 1
-        a = list(range(self._offsets[resnum + 1], lenght))
-        C = i + templates_aa[resname].atom_names.index('C')
-        O = i + templates_aa[resname].atom_names.index('O')
+        d['phi'] = N_i, Ca_i, idx_rot
+        a = list(range(N_j, lenght))
+        idx_rot_omega = np.array(a)
+        C = N_i + templates_aa[resname].atom_names.index('C')
+        O = N_i + templates_aa[resname].atom_names.index('O')
         a.extend((C, O))  # The C and O atoms from this residue should rotate
         idx_rot = np.array(a)  # rotation are faster if idx_rot is an array
-        d['psi'] = k, l, idx_rot
+        d['psi'] = Ca_i, C_i, idx_rot
+        d['omega'] = C_i, N_j, idx_rot_omega
         ###  chi  ###
         rotation_indices.append(d)
     return rotation_indices
