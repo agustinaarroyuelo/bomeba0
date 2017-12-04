@@ -296,16 +296,13 @@ def _get_rotation_indices_prot(self):
         i = self._offsets[resnum]
         j = i + 1
         resname = self.sequence[resnum]
-        if resname != 'P':
+        a = list(range(j, lenght))
+        try:
             H = templates_aa[resname].atom_names.index('H')
-            a = list(range(j, lenght))
-            try:
-                a.remove(i + H)  # H atom should not be rotated
-            except ValueError:
-                pass
-            idx_rot = np.array(a)  # rotation are faster if idx_rot is an array
-        # else:   # XXX phi is not changed for P, should we?
-        #    idx_rot = np.arrange(j, len(xyz))
+            a.remove(i + H)  # H atom should not be rotated
+        except ValueError:
+            pass
+        idx_rot = np.array(a)  # rotation are faster if idx_rot is an array
         d['phi'] = i, j, idx_rot
         ###  psi  ###
         # N(i),Ca(i),C(i),N(i+1)
