@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from .biomolecules import Biomolecule
 from ..templates.aminoacids import templates_aa, three_to_one_aa
-from ..constants import constants, rotamers
+from ..constants import constants, rotamers, chi_ijh
 from ..pdbIO import _prot_builder_from_seq, _pdb_parser
 from ..utils import get_torsional
 from ..geometry import set_torsional
@@ -91,7 +91,7 @@ class Protein(Biomolecule):
 
             if regularize:
                 torsionals = self.get_torsionals(n_digits=4)
-                tors = torsionals[['phi', 'psi', 'omega']].values
+                tors = torsionals.iloc[:,1:].values
 
                 (self.coords,
                  self._names,
@@ -106,6 +106,9 @@ class Protein(Biomolecule):
                     self.set_phi(idx, val[0])
                     self.set_psi(idx, val[1])
                     self.set_omega(idx, val[2])
+                    for i in range(1, 6):
+                        if not np.isnan(val[i+2]):
+                            self.set_chi(idx, i, val[i+2])
 
         else:
             "Please provide a sequence or a pdb file"
@@ -241,10 +244,10 @@ class Protein(Biomolecule):
         else:
             this = self._offsets[resnum]
             if chi_num == 1:
-                a = coords[this]
-                b = coords[this + 1]
-                c = coords[this + 4]
-                d = coords[this + 5]
+                a = coords[this]  # N
+                b = coords[this + 1]  # Ca
+                c = coords[this + 4]  # Cb
+                d = coords[this + 5]  # Xg
             elif chi_num == 2:
                 a = coords[this + 1]
                 b = coords[this + 4]
@@ -349,7 +352,30 @@ class Protein(Biomolecule):
             xyz = self.coords
             i, j, idx_rot = self._rotation_indices[resnum]['omega']
             set_torsional(xyz, i, j, idx_rot, theta_rad)
-            
+
+    def set_chi(self, resnum, chi_num, theta):
+        """
+        set the chi torsional angles
+
+        Parameters
+        ----------
+        resnum : int
+            residue number from which to compute torsional
+        chi_num : int
+            number of chi, some residues have more than one chi torsional
+        theta : float
+            value of the angle to set in degrees
+        """
+        coords = self.coords
+        seq = self.sequence
+        resname = seq[resnum]
+        theta_rad = (self.get_chi(resnum, chi_num) - theta) * \
+                    constants.degrees_to_radians
+        xyz = self.coords
+        i, j, idx_rot = self._rotation_indices[resnum]['chi{}'.format(chi_num)]
+        set_torsional(xyz, i, j, idx_rot, theta_rad)
+
+
 def _get_rotation_indices_prot(self):
     """
     Precompute indices that are then used to rotate only the proper portion of
@@ -366,24 +392,43 @@ def _get_rotation_indices_prot(self):
         N_i = self._offsets[resnum]
         Ca_i = N_i + 1
         C_i = N_i + 2
+        Cb_i = N_i + 4
         N_j = self._offsets[resnum + 1]
         resname = self.sequence[resnum]
         a = list(range(Ca_i, lenght))
-        try:
-            H = templates_aa[resname].atom_names.index('H')
-            a.remove(N_i + H)  # H atom should not be rotated
-        except ValueError:
-            pass
-        idx_rot = np.array(a)  # rotation are faster if idx_rot is an array
-        d['phi'] = N_i, Ca_i, idx_rot
+        if resname != 'P':
+            # hydrogen 'H' should not rotate
+            a.remove(N_i + templates_aa[resname].atom_names.index('H'))
+        # rotation are faster if idx_rot is an array
+        d['phi'] = N_i, Ca_i, np.array(a)
         a = list(range(N_j, lenght))
         idx_rot_omega = np.array(a)
         C = N_i + templates_aa[resname].atom_names.index('C')
         O = N_i + templates_aa[resname].atom_names.index('O')
         a.extend((C, O))  # The C and O atoms from this residue should rotate
-        idx_rot = np.array(a)  # rotation are faster if idx_rot is an array
-        d['psi'] = Ca_i, C_i, idx_rot
+        d['psi'] = Ca_i, C_i, np.array(a)
         d['omega'] = C_i, N_j, idx_rot_omega
         ###  chi  ###
+        for chi_num in range(1, 6):
+            if resname in rotamers[chi_num]:
+                if chi_num == 1:
+                    X_i = Ca_i
+                    Y_i = Cb_i
+                    hydrogens = ['H', 'HA']        
+                elif chi_num > 1:
+                    i, j, hydrogens = chi_ijh[chi_num]
+                    X_i = Cb_i + i
+                    Y_i = Cb_i + j
+
+                a = list(range(Y_i, N_j))
+                for h in hydrogens:
+                    try:
+                        a.remove(N_i + templates_aa[resname].atom_names.index(h))
+                    except ValueError:
+                        pass
+
+                d['chi{}'.format(chi_num)] = X_i, Y_i,  np.array(a)
+
         rotation_indices.append(d)
+
     return rotation_indices
