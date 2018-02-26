@@ -13,6 +13,18 @@ constants = Constants(57.29577951308232,
                       3.141592653589793,
                       1.364)
 
+rotamers = {1:['R', 'K', 'Q', 'E', 'M', 'D', 'F', 'H', 'L','I', 'W','Y', 'N',
+               'S', 'T', 'V', 'C'],
+            2:['R', 'K', 'Q', 'E', 'M', 'D', 'F', 'H', 'L','I', 'W','Y', 'N'],
+            3:['R', 'K', 'Q', 'E', 'M'],
+            4:['R', 'K'],
+            5:['R']}
+            
+chi_ijh = {2:(0, 1, ['H', 'HA', 'HB', 'HB2', 'HB3']),
+           3:(1, 2, ['H', 'HA', 'HB', 'HB2', 'HB3', 'HG2', 'HG3']),
+           4:(2, 3, ['H', 'HA', 'HB2', 'HB3', 'HG2', 'HG3', 'HD2', 'HD3']),
+           5:(3, 4, ['H', 'HA', 'HB2', 'HB3', 'HG2', 'HG3', 'HD2', 'HD3', 'HE'])}
+
 # see scafold/gen_vdw_parameters.py for details on the generation of
 # par_s_ij  and par_eps_ij
 par_s_ij = {'CC': 3.816, 'HC': 3.395, 'OH': 3.1482, 'NH': 3.311, 'OO': 3.3224,

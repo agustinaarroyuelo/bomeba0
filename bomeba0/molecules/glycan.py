@@ -7,7 +7,7 @@ import pandas as pd
 from .biomolecules import Biomolecule
 from ..constants import constants
 from ..templates.glycans import templates_gl
-from ..pdbIO import _builder_from_pdb
+from ..pdbIO import _builder_from_pdb_gl
 from ..utils import get_torsional
 from ..geometry import set_torsional
 
@@ -34,11 +34,12 @@ class Glycan(Biomolecule):
              self.occupancies,
              self.bfactors,
              self._offsets,
-             self._exclusions) = _builder_from_pdb(pdb, 'glycan',
-                                                   regularize=True,
-                                                   linkages=linkages)
+             self._exclusions) = _builder_from_pdb_gl(pdb, 'glycan',
+                                                      regularize=True,                                                        
+                                                      linkages=linkages)
 
-            self._rotation_indices = _get_rotation_indices_gl(self, linkages=linkages)
+            self._rotation_indices = _get_rotation_indices_gl(self,
+                                                              linkages=linkages)
         else:
             "Please provide a sequence or a pdb file"
 
