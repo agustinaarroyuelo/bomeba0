@@ -25,13 +25,17 @@ def _prot_builder_from_seq(sequence):
     offsets = [0, offset]
     for idx, aa in enumerate(sequence[1:]):
         tmp_coords, tmp_at, bonds, _, _, offset = templates_aa[aa]
+        if sequence[0] == 'B' and idx == 0:
+            v3 = pept_coords[0 + offsets[idx]]  # C
+            v2 = pept_coords[2 + offsets[idx]]  # CH3
+            v1 = (pept_coords[5 + offsets[idx]] + pept_coords[3 + offsets[idx]]) / 2  # HH31 / HH33
+            #['C', 'O', 'CH3', 'HH31', 'HH32', 'HH33'],
+        else:
+            v3 = pept_coords[2 + offsets[idx]]  # C
+            v2 = pept_coords[1 + offsets[idx]]  # CA
+            v1 = pept_coords[0 + offsets[idx]]  # N
 
-        v3 = pept_coords[2 + offsets[idx]]  # C
-        v2 = pept_coords[1 + offsets[idx]]  # CA
-        v1 = pept_coords[0 + offsets[idx]]  # N
-
-        connectionpoint = v3 + (v2 - v1) / mod(v2 - v1) * \
-            constants.peptide_bond_lenght
+        connectionpoint = v3 + (v2 - v1) / mod(v2 - v1) * constants.peptide_bond_lenght
         connectionvector = tmp_coords[0] - connectionpoint
 
         # translate
@@ -127,7 +131,7 @@ def _builder_from_pdb_gl(pdb, mol_type, regularize=False, linkages=None):
                 bfactors,
                 offsets,
                 exclusions)
-    
+
     else:
         bonds_mol = []
         _, _, bonds, _, _, offset = templates[sequence[0]]
@@ -172,10 +176,10 @@ def _builder_from_pdb_gl(pdb, mol_type, regularize=False, linkages=None):
                         bonds_mol.append((prev_offset + O_idx, last_offset))
                         #print('b', resname, prev_offset, O_idx, link)
                         #print('4', prev_offset + O_idx, last_offset)
-    
+
         offsets.append(offsets[-1] + offset)
         exclusions = _exclusions_1_3(bonds_mol)
-    
+
         return (sequence,
                 mol_coords,
                 names,
@@ -206,7 +210,7 @@ def _pdb_parser(filename, three_to_one):
     #charge = []
     for line in open(filename).readlines():
         if line[0:5] == 'ATOM ':
-            #serial.append(int(line[6:11]))
+            # serial.append(int(line[6:11]))
             names.append(line[12:16].strip())
             # altloc.append(line[16])
             resnames.append(line[17:20])
@@ -258,7 +262,7 @@ def _exclusions_1_3(bonds_mol):
 
     exclusions = bonds_mol + angles_mol
     return set([tuple(sorted(i)) for i in exclusions])
-    
+
 
 def _dump_pdb(self, filename, b_factors, to_file):
     """

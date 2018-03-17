@@ -491,15 +491,46 @@ V_info = AA_info(coords=np.array([[-0.13, -2.06, -0.86],
                  offset=16)
 
 
+
+
+B_info = AA_info(coords=np.array([[ 1.12,  0.22, -0.24],
+                                  [ 1.74, -0.73, -0.65],
+                                  [-0.34,  0.14,  0.17],
+                                  [-0.47, -0.57,  0.98],
+                                  [-0.68,  1.12,  0.5 ],
+                                  [-0.95, -0.17, -0.69]]),
+             atom_names = ['C', 'O', 'CH3', 'HH31', 'HH32', 'HH33'],
+             bb = [0, 2],
+             sc = [1, 3, 4, 5],
+             bonds = [(0, 1), (0, 2), (2, 3), (2, 4), (2, 5)],
+             offset = 6)
+
+
+Z_info = AA_info(coords=np.array([[ 2.23,  0.97, -0.68],
+                                  [ 3.68,  0.81, -0.52],
+                                  [ 1.91,  1.81, -0.21],
+                                  [ 3.93,  0.74,  0.55],
+                                  [ 4.02, -0.09, -1.03],
+                                  [ 4.2 ,  1.68, -0.94]]),
+                  atom_names = ['N', 'CH3', 'H', 'HH31', 'HH32', 'HH33'],
+                  bb = [0, 2],
+                  sc = [1, 3, 4, 5],
+                  bonds = [(0, 1), (0, 2), (1, 3), (1, 4), (1, 5)],
+                  offset = 6)
+
+
+
 templates_aa = {'A': A_info, 'C': C_info, 'D': D_info, 'E': E_info,
                 'F': F_info, 'G': G_info, 'H': H_info, 'I': I_info,
                 'K': K_info, 'L': L_info, 'M': M_info, 'N': N_info,
                 'P': P_info, 'Q': Q_info, 'R': R_info, 'S': S_info,
-                'T': T_info, 'V': V_info, 'W': W_info, 'Y': Y_info}
+                'T': T_info, 'V': V_info, 'W': W_info, 'Y': Y_info,
+                'B': B_info, 'Z': Z_info}
 
 one_to_three_aa = {'A': 'ALA', 'C': 'CYS', 'D': 'ASP', 'E': 'GLU', 'F': 'PHE',
                 'G': 'GLY', 'H': 'HIS', 'I': 'ILE', 'K': 'LYS', 'L': 'LEU',
                 'M': 'MET', 'N': 'ASN', 'P': 'PRO', 'Q': 'GLN', 'R': 'ARG',
-                'S': 'SER', 'T': 'THR', 'V': 'VAL', 'W': 'TRP', 'Y': 'TYR'}
+                'S': 'SER', 'T': 'THR', 'V': 'VAL', 'W': 'TRP', 'Y': 'TYR',
+                'B': 'ACE', 'Z': 'NME'}
 
 three_to_one_aa = {val: key for key, val in one_to_three_aa.items()}
