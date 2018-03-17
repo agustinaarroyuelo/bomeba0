@@ -372,11 +372,14 @@ class Protein(Biomolecule):
         seq = self.sequence
         resname = seq[resnum]
         coords = self.coords
-        theta_rad = (self.get_chi(resnum, chi_num) - theta) * \
+        if resname not in rotamers[chi_num]:
+            pass
+        else:
+            theta_rad = (self.get_chi(resnum, chi_num) - theta) * \
             constants.degrees_to_radians
-        xyz = self.coords
-        i, j, idx_rot = self._rotation_indices[resnum]['chi{}'.format(chi_num)]
-        set_torsional(xyz, i, j, idx_rot, theta_rad)
+            xyz = self.coords
+            i, j, idx_rot = self._rotation_indices[resnum]['chi{}'.format(chi_num)]
+            set_torsional(xyz, i, j, idx_rot, theta_rad)
 
 
 def _get_rotation_indices_prot(self):
