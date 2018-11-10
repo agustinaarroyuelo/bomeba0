@@ -3,7 +3,7 @@
 import numpy as np
 np.set_printoptions(precision=2)
 import __main__
-__main__.pymol_argv = ['pymol','-qck']
+__main__.pymol_argv = ['pymol', '-qck']
 import pymol
 from pymol import cmd, stored
 pymol.finish_launching()
@@ -15,11 +15,11 @@ cmd.set('pdb_reformat_names_mode', 2)
 sel = 'all'
 
 aa = ['A', 'R', 'N', 'D', 'C', 'E', 'Q', 'G', 'H', 'I', 'L', 'K', 'M',
-      'F', 'P', 'S', 'T', 'W', 'Y', 'V']
+      'F', 'P', 'S', 'T', 'W', 'Y', 'V', 'B', 'Z']
 
 
 def minimize(selection='all', forcefield='MMFF94s', method='cg',
-             nsteps= 2000, conv=1E-8, cutoff=False, cut_vdw=6.0, cut_elec=8.0):
+             nsteps=2000, conv=1E-8, cutoff=False, cut_vdw=6.0, cut_elec=8.0):
     pdb_string = cmd.get_pdbstr(selection)
     name = cmd.get_legal_name(selection)
     obconversion = ob.OBConversion()
@@ -45,42 +45,47 @@ def minimize(selection='all', forcefield='MMFF94s', method='cg',
     cmd.read_pdbstr(pdb_string, name)
     return nrg
 
-#aa = ['W']
 
 for res_name in aa:
-    ## Get coordinates and offset
-    #cmd.load('templates/protein/{}.pdb'.format(res_name))
+    # Get coordinates and offset
+    # cmd.load('templates/protein/{}.pdb'.format(res_name))
     #stored.IDs = []
-    #cmd.iterate('all','stored.IDs.append((ID))')
+    # cmd.iterate('all','stored.IDs.append((ID))')
     #cmd.alter('all', 'ID = ID - stored.IDs[0] - 1')
-    cmd.fab(res_name)
+
+    if res_name == 'Z':
+        cmd.fab('AZ')
+        cmd.select('lala', 'resname ala')
+        cmd.remove('lala')
+    else:
+        cmd.fab(res_name)
     nrg = minimize(selection=sel, forcefield='GAFF', method='cg', nsteps=2000)
-    #print(nrg)
+    # print(nrg)
     xyz = cmd.get_coords(sel)
     offset = len(xyz)
 
-    ## get atom names
+    # get atom names
     stored.atom_names = []
     cmd.iterate(sel, 'stored.atom_names.append(name)')
 
-    ## get bonds
+    # get bonds
     stored.bonds = []
     model = cmd.get_model(sel)
     for at in model.atom:
-        cmd.iterate('neighbor ID %s' % at.id, 
-                        'stored.bonds.append((%s-1, ID-1))' % at.id)
+        cmd.iterate('neighbor ID %s' % at.id,
+                    'stored.bonds.append((%s-1, ID-1))' % at.id)
     bonds = list(set([tuple(sorted(i)) for i in stored.bonds]))
     bonds.sort()
-    
-    ## get bb and sc
+
+    # get bb and sc
     stored.bb = []
     stored.sc = []
     bb = '(nbr (name n+ca+c+o) ) and hydro or (name n+ca+c+o)'
     sc = 'not ({})'.format(bb)
     cmd.iterate(bb, 'stored.bb.append(ID-1)')
     cmd.iterate(sc, 'stored.sc.append(ID-1)')
-    
-    ## small check before returning the results
+
+    # small check before returning the results
     if len(stored.atom_names) == offset:
         if res_name == 'G':
             stored.atom_names = ['N', 'CA', 'C', 'O', 'H', 'HA2', 'HA3']
@@ -94,5 +99,3 @@ for res_name in aa:
     else:
         print('Something funny is going on here!')
     cmd.delete('all')
-
-

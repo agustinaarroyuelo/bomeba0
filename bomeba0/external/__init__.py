@@ -1,0 +1,1 @@
+from .gaussian import gen_tripeptides

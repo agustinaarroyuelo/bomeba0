@@ -10,6 +10,7 @@ from ..pdbIO import _prot_builder_from_seq, _pdb_parser
 from ..utils import get_torsional
 from ..geometry import set_torsional
 
+
 class Protein(Biomolecule):
     """Protein object"""
 
@@ -63,19 +64,22 @@ class Protein(Biomolecule):
 
             if torsionals is not None:
                 for idx, val in enumerate(torsionals):
-                    i = float(val[0])
-                    j = float(val[1])
-                    self.set_phi(idx, i)
-                    self.set_psi(idx, j)
+                    if self.sequence[idx] not in ['B', 'Z']:
+                        i = float(val[0])
+                        j = float(val[1])
+                        self.set_phi(idx, i)
+                        self.set_psi(idx, j)
             else:
                 if ss == 'strand':
                     for i in range(len(self)):
-                        self.set_phi(i, -135)
-                        self.set_psi(i, 135)
+                        if self.sequence[i] not in ['B', 'Z']:
+                            self.set_phi(i, -135)
+                            self.set_psi(i, 135)
                 elif ss == 'helix':
                     for i in range(len(self)):
-                        self.set_phi(i, -60)
-                        self.set_psi(i, -40)
+                        if self.sequence[i] not in ['B', 'Z']:
+                            self.set_phi(i, -60)
+                            self.set_psi(i, -40)
 
         elif pdb is not None:
             (self._names,
@@ -85,13 +89,13 @@ class Protein(Biomolecule):
              self.bfactors,
              self._elements,
              self._offsets) = _pdb_parser(pdb, three_to_one_aa)
- 
+
             self._exclusions = []
             self._rotation_indices = _get_rotation_indices_prot(self)
 
             if regularize:
                 torsionals = self.get_torsionals(n_digits=4)
-                tors = torsionals.iloc[:,1:].values
+                tors = torsionals.iloc[:, 1:].values
 
                 (self.coords,
                  self._names,
@@ -156,7 +160,6 @@ class Protein(Biomolecule):
                 atom_names = self._names[offset_0: offset_1]
                 idx = atom_names.index(selection)
             return rescoords[idx]
-
 
     def get_phi(self, resnum):
         """
@@ -366,14 +369,17 @@ class Protein(Biomolecule):
         theta : float
             value of the angle to set in degrees
         """
-        coords = self.coords
         seq = self.sequence
         resname = seq[resnum]
-        theta_rad = (self.get_chi(resnum, chi_num) - theta) * \
-                    constants.degrees_to_radians
-        xyz = self.coords
-        i, j, idx_rot = self._rotation_indices[resnum]['chi{}'.format(chi_num)]
-        set_torsional(xyz, i, j, idx_rot, theta_rad)
+        coords = self.coords
+        if resname not in rotamers[chi_num]:
+            pass
+        else:
+            theta_rad = (self.get_chi(resnum, chi_num) - theta) * \
+            constants.degrees_to_radians
+            xyz = self.coords
+            i, j, idx_rot = self._rotation_indices[resnum]['chi{}'.format(chi_num)]
+            set_torsional(xyz, i, j, idx_rot, theta_rad)
 
 
 def _get_rotation_indices_prot(self):
@@ -386,48 +392,51 @@ def _get_rotation_indices_prot(self):
     for resnum in range(0, len(self)):
         d = {}
         ###      phi        ###
-                 ###    psi      ###
-                      ###    omega      ###
+        ###    psi      ###
+        ###    omega      ###
         # C(h),N(i),Ca(i),C(i),N(j) Ca(j)
-        N_i = self._offsets[resnum]
-        Ca_i = N_i + 1
-        C_i = N_i + 2
-        Cb_i = N_i + 4
-        N_j = self._offsets[resnum + 1]
         resname = self.sequence[resnum]
-        a = list(range(Ca_i, lenght))
-        if resname != 'P':
-            # hydrogen 'H' should not rotate
-            a.remove(N_i + templates_aa[resname].atom_names.index('H'))
-        # rotation are faster if idx_rot is an array
-        d['phi'] = N_i, Ca_i, np.array(a)
-        a = list(range(N_j, lenght))
-        idx_rot_omega = np.array(a)
-        C = N_i + templates_aa[resname].atom_names.index('C')
-        O = N_i + templates_aa[resname].atom_names.index('O')
-        a.extend((C, O))  # The C and O atoms from this residue should rotate
-        d['psi'] = Ca_i, C_i, np.array(a)
-        d['omega'] = C_i, N_j, idx_rot_omega
-        ###  chi  ###
-        for chi_num in range(1, 6):
-            if resname in rotamers[chi_num]:
-                if chi_num == 1:
-                    X_i = Ca_i
-                    Y_i = Cb_i
-                    hydrogens = ['H', 'HA']        
-                elif chi_num > 1:
-                    i, j, hydrogens = chi_ijh[chi_num]
-                    X_i = Cb_i + i
-                    Y_i = Cb_i + j
+        if resname in ['B', 'Z']:
+            pass
+        else:
+            N_i = self._offsets[resnum]
+            Ca_i = N_i + 1
+            C_i = N_i + 2
+            Cb_i = N_i + 4
+            N_j = self._offsets[resnum + 1]
+            a = list(range(Ca_i, lenght))
+            if resname != 'P':
+                # hydrogen 'H' should not rotate
+                a.remove(N_i + templates_aa[resname].atom_names.index('H'))
+            # rotation are faster if idx_rot is an array
+            d['phi'] = N_i, Ca_i, np.array(a)
+            a = list(range(N_j, lenght))
+            idx_rot_omega = np.array(a)
+            C = N_i + templates_aa[resname].atom_names.index('C')
+            O = N_i + templates_aa[resname].atom_names.index('O')
+            a.extend((C, O))  # The C and O atoms from this residue should rotate
+            d['psi'] = Ca_i, C_i, np.array(a)
+            d['omega'] = C_i, N_j, idx_rot_omega
+            ###  chi  ###
+            for chi_num in range(1, 6):
+                if resname in rotamers[chi_num]:
+                    if chi_num == 1:
+                        X_i = Ca_i
+                        Y_i = Cb_i
+                        hydrogens = ['H', 'HA']
+                    elif chi_num > 1:
+                        i, j, hydrogens = chi_ijh[chi_num]
+                        X_i = Cb_i + i
+                        Y_i = Cb_i + j
 
-                a = list(range(Y_i, N_j))
-                for h in hydrogens:
-                    try:
-                        a.remove(N_i + templates_aa[resname].atom_names.index(h))
-                    except ValueError:
-                        pass
+                    a = list(range(Y_i, N_j))
+                    for h in hydrogens:
+                        try:
+                            a.remove(N_i + templates_aa[resname].atom_names.index(h))
+                        except ValueError:
+                            pass
 
-                d['chi{}'.format(chi_num)] = X_i, Y_i,  np.array(a)
+                    d['chi{}'.format(chi_num)] = X_i, Y_i,  np.array(a)
 
         rotation_indices.append(d)
 
